@@ -1,0 +1,41 @@
+<script>
+/** HORNYS-POS V3 — resilient client-side payment flow helpers. */
+(function () {
+  'use strict';
+
+  function requestId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'POS-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+
+  window.POSPaymentV3 = {
+    busy: false,
+    begin: function () {
+      if (this.busy) return null;
+      this.busy = true;
+      if (typeof afficherChargementAction === 'function') afficherChargementAction('Encaissement en cours…');
+      return requestId();
+    },
+    finish: function () {
+      this.busy = false;
+      if (typeof masquerChargementAction === 'function') masquerChargementAction();
+    },
+    pay: function (payload, success, failure) {
+      var id = this.begin();
+      if (!id) return;
+      payload = Object.assign({}, payload || {}, { orderId: payload && payload.orderId || id });
+      google.script.run
+        .withSuccessHandler(function (result) {
+          POSPaymentV3.finish();
+          if (typeof success === 'function') success(result);
+        })
+        .withFailureHandler(function (error) {
+          POSPaymentV3.finish();
+          if (typeof failure === 'function') failure(error);
+          else if (typeof afficherStatus === 'function') afficherStatus(error && error.message || 'Échec de l’encaissement.', 'error');
+        })
+        .enregistrerVenteFormule(payload);
+    }
+  };
+})();
+</script>
