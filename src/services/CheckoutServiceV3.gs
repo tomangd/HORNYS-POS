@@ -16,9 +16,7 @@ var CheckoutServiceV3 = (function () {
     normalized.paiement = PaymentServiceV3.normalize(payload.paiement);
     normalized.orderId = String(payload.orderId || '').trim();
     if (!normalized.orderId) throw new Error('Identifiant de commande manquant.');
-    if (normalized.ardoise && normalized.paiement !== 'Ardoise') {
-      throw new Error('Les informations d’ardoise ne sont autorisées qu’avec le paiement Ardoise.');
-    }
+    CheckoutRulesV3.validate(normalized);
     return normalized;
   }
 
