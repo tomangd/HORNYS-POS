@@ -1,9 +1,9 @@
 /**
  * HORNYS-POS V3 — transactional primitives.
  *
- * Keeps the public response shape of the existing POS while adding a
- * transaction boundary, idempotency and audit logging around the legacy
- * business operation during the migration.
+ * The V3 sale engine is now self-contained, so the transaction boundary can
+ * safely use the global ScriptLock. This prevents two different cashiers from
+ * racing on the same stock rows or generating conflicting transaction ids.
  */
 var TransactionService = (function () {
   'use strict';
@@ -14,17 +14,12 @@ var TransactionService = (function () {
     var existing = Idempotency.get(idempotencyKey);
     if (existing) return existing;
 
-    // The legacy sale implementation owns the ScriptLock. Use a separate
-    // user lock here to serialize repeated submissions without nesting the
-    // same ScriptLock and risking a deadlock.
-    var lock = LockService.getUserLock();
-    if (!lock.tryLock(10000)) {
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(15000)) {
       throw new Error('Une transaction est déjà en cours. Réessayez dans quelques secondes.');
     }
 
     try {
-      // Re-check after acquiring the lock: another request may have finished
-      // while this request was waiting.
       existing = Idempotency.get(idempotencyKey);
       if (existing) return existing;
 
@@ -33,8 +28,6 @@ var TransactionService = (function () {
         throw new Error('La transaction n’a retourné aucun résultat valide.');
       }
 
-      // Preserve the legacy response contract. The frontend currently expects
-      // transactionId/total/success at the root rather than under data.
       var response = Object.assign({}, result, {
         success: result.success !== false,
         v3: true,
