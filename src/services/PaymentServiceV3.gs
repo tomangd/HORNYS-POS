@@ -1,7 +1,7 @@
 /**
  * HORNYS-POS V3 — payment domain validation.
- * This service does not write money by itself; the sale transaction remains
- * the single atomic business operation.
+ * This service validates the selected settlement mode without changing the
+ * legacy meaning of Facture, Contrat and Ardoise in the POS.
  */
 var PaymentServiceV3 = (function () {
   'use strict';
@@ -20,7 +20,9 @@ var PaymentServiceV3 = (function () {
     var method = normalize(vente.paiement);
     var amount = Validation.positiveNumber(total, 'Total');
     if (method === 'Fidelite' && !vente.rewardId) throw new Error('Une récompense est obligatoire pour un paiement fidélité.');
-    if ((method === 'Facture' || method === 'Contrat') && !vente.contractId) throw new Error('Un contrat est obligatoire pour ce mode de paiement.');
+    // Facture is a normal settlement mode. Contrat is the enterprise-contract
+    // mode and therefore requires an active contract. Ardoise requires a target account.
+    if (method === 'Contrat' && !vente.contractId) throw new Error('Un contrat est obligatoire pour ce mode de paiement.');
     if (method === 'Ardoise' && (!vente.ardoise || !vente.ardoise.client)) throw new Error('Un compte est obligatoire pour une ardoise.');
     return { method: method, total: amount };
   }
