@@ -35,12 +35,12 @@ var VenteServiceV3 = (function () {
     return PaymentServiceV3.validateSale(vente, total);
   }
 
-  function reward_(vente) {
+  function reward_(vente, orderId) {
     if (!vente.rewardId) return null;
     if (!vente.clientId || vente.paiement !== 'Fidelite') {
       throw new Error('Un compte fidélité est obligatoire pour cette récompense.');
     }
-    return LoyaltyTransactionV3.redeem(vente.orderId, vente.clientId, vente.rewardId);
+    return LoyaltyTransactionV3.redeem(orderId, vente.clientId, vente.rewardId);
   }
 
   function persist_(vente, articles, contract, employee, subtotal, discount, total, now, payment) {
@@ -64,13 +64,13 @@ var VenteServiceV3 = (function () {
         if (companyAmount > 0) ajouterEntreeLedger({ companyId: contract.companyId, contractId: contract.id, transactionId: transactionId, employeeId: employee.id, amount: companyAmount, type: 'DEBIT', createdAt: now, status: 'OUVERT' });
         var webhookStatus = envoyerWebhookContrat(contract, employee, articles, total, employeeAmount, companyAmount, vente.vendeur, transactionId);
         txSheet.getRange(contractRow, 17).setValue(webhookStatus);
-        var rewardResult = reward_(vente);
+        var rewardResult = reward_(vente, orderId);
         return { success: true, transactionId: transactionId, total: total, employeeAmount: employeeAmount, companyAmount: companyAmount, companyName: company.companyName || company.nom || contract.companyName, loyalty: rewardResult };
       }
       if (vente.ardoise && vente.ardoise.client) {
         ArdoiseServiceV3.create({ clientId: vente.ardoise.client, employe: vente.ardoise.employe || '-', total: total, paid: 0, startDate: now }, vente.vendeur);
       }
-      var loyaltyResult = reward_(vente);
+      var loyaltyResult = reward_(vente, orderId);
       if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') {
         loyaltyResult = LoyaltyTransactionV3.award(orderId, vente.clientId, total);
       }
