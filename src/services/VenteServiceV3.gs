@@ -30,9 +30,7 @@ var VenteServiceV3 = (function () {
     return employee;
   }
 
-  function validatePayment_(vente, total) {
-    return PaymentServiceV3.validateSale(vente, total);
-  }
+  function validatePayment_(vente, total) { return PaymentServiceV3.validateSale(vente, total); }
 
   function redeemReward_(vente) {
     if (!vente.rewardId) return;
@@ -45,7 +43,11 @@ var VenteServiceV3 = (function () {
     var orderId = String(vente.orderId || transactionId);
     var companyAmount = contract ? arrondirMontant(total * Number(contract.companyPercent || 0) / 100) : 0;
     var employeeAmount = arrondirMontant(total - companyAmount);
-    var salesSheet = obterFeuilleVente_();
+    var salesSheet = obtenirFeuille('Ventes');
+
+    // Every failure-prone validation has already happened before this point.
+    // Consume stock in one batch and keep a movement journal for traceability.
+    StockServiceV3.consume(articles, vente.vendeur, orderId);
     salesSheet.appendRow([
       salesSheet.getLastRow() + 1, Utilities.formatDate(now, 'Europe/Paris', 'dd/MM/yyyy'),
       Utilities.formatDate(now, 'Europe/Paris', 'HH:mm:ss'), vente.vendeur,
@@ -53,11 +55,9 @@ var VenteServiceV3 = (function () {
       companyAmount > 0 ? 'Oui' : 'Non', contract ? 'CONTRAT_' + contract.type : 'Complétée', vente.clientId || ''
     ]);
 
-    StockServiceV3.consume(articles, vente.vendeur, orderId);
-
     if (contract) {
       var company = trouverClientParId(contract.companyId) || {};
-      var txSheet = obterFeuilleContrats_();
+      var txSheet = obtenirFeuille('CONTRACT_TRANSACTIONS');
       txSheet.appendRow([
         transactionId, contract.id, contract.companyId, employee.id, employee.name, employee.identifier,
         orderId, contract.type, total, employeeAmount, companyAmount, discount, payment.method,
@@ -71,8 +71,8 @@ var VenteServiceV3 = (function () {
         transactionId: transactionId, employeeId: employee.id, amount: companyAmount, type: 'DEBIT', createdAt: now, status: 'OUVERT' });
       var webhookStatus = envoyerWebhookContrat(contract, employee, articles, total, employeeAmount, companyAmount, vente.vendeur, transactionId);
       txSheet.getRange(txSheet.getLastRow(), 17).setValue(webhookStatus);
-      return { success: true, transactionId: transactionId, total: total, employeeAmount: employeeAmount,
-        companyAmount: companyAmount, companyName: company.companyName || company.nom || contract.companyName };
+      return { success: true, transactionId: transactionId, total: total, employeeAmount: employeeAmount, companyAmount: companyAmount,
+        companyName: company.companyName || company.nom || contract.companyName };
     }
 
     if (vente.ardoise && vente.ardoise.client) ArdoiseServiceV3.create({ clientId: vente.ardoise.client,
@@ -80,9 +80,6 @@ var VenteServiceV3 = (function () {
     if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') CustomerServiceV3.addPoints(vente.clientId, total);
     return { success: true, transactionId: orderId, total: total, employeeAmount: total, companyAmount: 0 };
   }
-
-  function obterFeuilleVente_() { return obtenirFeuille('Ventes'); }
-  function obterFeuilleContrats_() { return obtenirFeuille('CONTRACT_TRANSACTIONS'); }
 
   function execute(vente) {
     Validation.object(vente, 'Vente');
