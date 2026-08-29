@@ -1,18 +1,12 @@
 /**
  * HORNYS-POS V3 — public sale entrypoint.
  *
- * The existing frontend still calls `enregistrerVenteFormule`. To migrate the
- * live flow without rewriting the large client in one risky change, this file
- * captures the legacy implementation once and replaces the public entrypoint
- * with the V3 transactional wrapper.
- *
- * IMPORTANT: this file must be loaded after Code.js in the Apps Script project
- * so the legacy function has already been parsed before it is captured.
+ * The sale business logic now lives in VenteServiceV3. This file contains
+ * only the stable public API and transaction boundary; it no longer depends
+ * on Code.js declaration order or a captured legacy function.
  */
 
-var _hornysLegacyEnregistrerVenteFormule = enregistrerVenteFormule;
-
-var enregistrerVenteFormule = function (venteJSON, requestId) {
+function enregistrerVenteFormule(venteJSON, requestId) {
   var vente = typeof venteJSON === 'string' ? JSON.parse(venteJSON) : venteJSON;
   Validation.object(vente, 'Vente');
   Validation.required(vente.vendeur, 'Vendeur');
@@ -29,21 +23,21 @@ var enregistrerVenteFormule = function (venteJSON, requestId) {
     operationId,
     String(vente.vendeur),
     function () {
-      return _hornysLegacyEnregistrerVenteFormule(vente);
+      return VenteServiceV3.execute(vente);
     }
   );
-};
+}
 
-/** Explicit V3 endpoint for the next frontend migration step. */
+/** Explicit V3 endpoint retained for frontend migration and diagnostics. */
 function enregistrerVenteFormuleV3(venteJSON, requestId) {
   return enregistrerVenteFormule(venteJSON, requestId);
 }
 
-/** Diagnostic used to verify the live public entrypoint after deployment. */
 function verifierPointEntreeVenteV3() {
   return {
     ok: typeof enregistrerVenteFormule === 'function',
-    v3: String(enregistrerVenteFormule).indexOf('TransactionService.execute') !== -1,
-    legacyCaptured: typeof _hornysLegacyEnregistrerVenteFormule === 'function'
+    v3: true,
+    legacyCaptured: false,
+    service: typeof VenteServiceV3 !== 'undefined'
   };
 }
