@@ -1,0 +1,52 @@
+/**
+ * HORNYS-POS V3 — serveur de session pour les caissiers.
+ * Les opérations sensibles peuvent utiliser un jeton serveur temporaire au lieu
+ * de faire confiance à un vendeurId transmis par le navigateur.
+ */
+var SessionService = (function () {
+  'use strict';
+
+  var PREFIX = 'hornys.pos.session.';
+  var TTL_SECONDS = 21600;
+
+  function issue(vendeur) {
+    if (!vendeur || vendeur.id === undefined || vendeur.id === null) throw new Error('Vendeur invalide.');
+    var token = Utilities.getUuid();
+    CacheService.getScriptCache().put(PREFIX + token, JSON.stringify({
+      vendeurId: vendeur.id,
+      role: String(vendeur.role || 'VENDEUR').toUpperCase(),
+      createdAt: new Date().toISOString()
+    }), TTL_SECONDS);
+    return token;
+  }
+
+  function read(token) {
+    if (!token) return null;
+    var raw = CacheService.getScriptCache().get(PREFIX + String(token));
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (error) { return null; }
+  }
+
+  function requireSession(token, feature) {
+    var session = read(token);
+    if (!session) throw new Error('Session expirée. Veuillez vous reconnecter.');
+    var vendeur = obtenirVendeurParId(session.vendeurId);
+    if (!vendeur) throw new Error('Vendeur introuvable.');
+    if (feature) {
+      var permissions = vendeur.permissions || {};
+      if (permissions[feature] !== true) throw new Error('Votre grade ne permet pas cette action.');
+    }
+    return vendeur;
+  }
+
+  function revoke(token) {
+    if (token) CacheService.getScriptCache().remove(PREFIX + String(token));
+    return true;
+  }
+
+  return { issue: issue, read: read, requireSession: requireSession, revoke: revoke };
+})();
+
+function creerSessionVendeur(vendeur) { return SessionService.issue(vendeur); }
+function verifierSessionVendeur(token, feature) { return SessionService.requireSession(token, feature); }
+function fermerSessionVendeur(token) { return SessionService.revoke(token); }
