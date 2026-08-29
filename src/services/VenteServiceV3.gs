@@ -19,19 +19,14 @@ var VenteServiceV3 = (function () {
     });
   }
 
-  function findContract_(vente, now) {
-    return vente.contractId ? ContractServiceV3.findActive(vente.contractId, now) : null;
-  }
-
+  function findContract_(vente, now) { return vente.contractId ? ContractServiceV3.findActive(vente.contractId, now) : null; }
   function validateContract_(vente, contract, articles) {
     if (!contract) return null;
     var employee = ContractServiceV3.validateEmployee(contract, vente.employeeId);
     ContractServiceV3.validateProducts(contract, articles);
     return employee;
   }
-
   function validatePayment_(vente, total) { return PaymentServiceV3.validateSale(vente, total); }
-
   function redeemReward_(vente) {
     if (!vente.rewardId) return;
     if (!vente.clientId || vente.paiement !== 'Fidelite') throw new Error('Un compte fidélité est obligatoire pour cette récompense.');
@@ -44,9 +39,6 @@ var VenteServiceV3 = (function () {
     var companyAmount = contract ? arrondirMontant(total * Number(contract.companyPercent || 0) / 100) : 0;
     var employeeAmount = arrondirMontant(total - companyAmount);
     var salesSheet = obtenirFeuille('Ventes');
-
-    // Every failure-prone validation has already happened before this point.
-    // Consume stock in one batch and keep a movement journal for traceability.
     StockServiceV3.consume(articles, vente.vendeur, orderId);
     salesSheet.appendRow([
       salesSheet.getLastRow() + 1, Utilities.formatDate(now, 'Europe/Paris', 'dd/MM/yyyy'),
@@ -54,15 +46,12 @@ var VenteServiceV3 = (function () {
       JSON.stringify(articles), subtotal, discount, total, payment.method,
       companyAmount > 0 ? 'Oui' : 'Non', contract ? 'CONTRAT_' + contract.type : 'Complétée', vente.clientId || ''
     ]);
-
     if (contract) {
       var company = trouverClientParId(contract.companyId) || {};
       var txSheet = obtenirFeuille('CONTRACT_TRANSACTIONS');
-      txSheet.appendRow([
-        transactionId, contract.id, contract.companyId, employee.id, employee.name, employee.identifier,
-        orderId, contract.type, total, employeeAmount, companyAmount, discount, payment.method,
-        vente.vendeur, JSON.stringify(articles), now, 'NON_ENVOYE', 'ENREGISTREE'
-      ]);
+      txSheet.appendRow([transactionId, contract.id, contract.companyId, employee.id, employee.name, employee.identifier,
+        orderId, contract.type, total, employeeAmount, companyAmount, discount, payment.method, vente.vendeur,
+        JSON.stringify(articles), now, 'NON_ENVOYE', 'ENREGISTREE']);
       if (contract.type === 'HEBDOMADAIRE_FIXE') articles.forEach(function (item) {
         ajouterConsommation({ contractId: contract.id, companyId: contract.companyId, transactionId: transactionId,
           productId: item.id, productName: item.nom, quantity: item.quantity, unitPrice: item.prix, consumedAt: now });
@@ -74,7 +63,6 @@ var VenteServiceV3 = (function () {
       return { success: true, transactionId: transactionId, total: total, employeeAmount: employeeAmount, companyAmount: companyAmount,
         companyName: company.companyName || company.nom || contract.companyName };
     }
-
     if (vente.ardoise && vente.ardoise.client) ArdoiseServiceV3.create({ clientId: vente.ardoise.client,
       employe: vente.ardoise.employe || '-', total: total, paid: 0, startDate: now }, vente.vendeur);
     if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') CustomerServiceV3.addPoints(vente.clientId, total);
@@ -94,6 +82,5 @@ var VenteServiceV3 = (function () {
     redeemReward_(vente);
     return persist_(vente, articles, contract, employee, subtotal, discount, total, now, payment);
   }
-
   return { execute: execute };
 })();
