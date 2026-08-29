@@ -53,9 +53,58 @@ var ContractServiceV3 = (function () {
     return employee;
   }
 
+  function validateLimits(contract, employee, articles, now) {
+    var txSheet = obtenirFeuille('CONTRACT_TRANSACTIONS');
+    var txRows = txSheet && txSheet.getLastRow() >= 2
+      ? txSheet.getRange(2, 1, txSheet.getLastRow() - 1, 18).getValues()
+      : [];
+    var dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var todayRows = txRows.filter(function (row) {
+      return String(row[1]) === String(contract.id) &&
+        String(row[3]) === String(employee.id) &&
+        row[15] instanceof Date && row[15] >= dayStart;
+    });
+    if (contract.dailyLimitEnabled && Number(contract.dailyLimitTransactions) > 0 &&
+        todayRows.length >= Number(contract.dailyLimitTransactions)) {
+      throw new Error('La limite quotidienne de transactions est atteinte.');
+    }
+    var requestedAmount = articles.reduce(function (sum, item) {
+      return sum + Number(item.prix) * Number(item.quantity);
+    }, 0);
+    var consumedToday = todayRows.reduce(function (sum, row) {
+      return sum + Number(row[10] || 0);
+    }, 0);
+    if (contract.dailyLimitEnabled && Number(contract.dailyLimitAmount) > 0 &&
+        consumedToday + requestedAmount > Number(contract.dailyLimitAmount)) {
+      throw new Error('La limite quotidienne du contrat est atteinte.');
+    }
+    if (contract.type === 'HEBDOMADAIRE_FIXE' &&
+        Number(contract.includedQuantity) > 0 && !contract.allowedOverage) {
+      var weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      var sheet = obtenirFeuille('CONTRACT_CONSUMPTION');
+      var rows = sheet && sheet.getLastRow() >= 2
+        ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues()
+        : [];
+      var consumed = rows.filter(function (row) {
+        return String(row[1]) === String(contract.id) &&
+          row[8] instanceof Date && row[8] >= weekStart;
+      }).reduce(function (sum, row) {
+        return sum + Number(row[6] || 0);
+      }, 0);
+      var requested = articles.reduce(function (sum, item) {
+        return sum + Number(item.quantity);
+      }, 0);
+      if (consumed + requested > Number(contract.includedQuantity)) {
+        throw new Error('Le quota hebdomadaire du contrat est dépassé.');
+      }
+    }
+    return true;
+  }
+
   return {
     findActive: findActive,
     validateProducts: validateProducts,
-    validateEmployee: validateEmployee
+    validateEmployee: validateEmployee,
+    validateLimits: validateLimits
   };
 })();
