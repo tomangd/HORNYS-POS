@@ -1,0 +1,1965 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Horny's POS</title>
+
+    <!-- Injection dynamique du CSS -->
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div
+      id="encaissementLoading"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        z-index: 5000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 14px;
+        text-align: center;
+        color: #fff;
+      "
+    >
+      <div
+        style="
+          width: 42px;
+          height: 42px;
+          border: 3px solid #3f4455;
+          border-top-color: #34d399;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        "
+      ></div>
+      <div style="width: 100%; font-size: 13px; line-height: 1.4">
+        Encaissement en cours...
+      </div>
+    </div>
+    <!-- CHARGEMENT -->
+    <div id="loadingScreen">
+      <img
+        src="https://i.postimg.cc/v8CMGbrR/logo-hornys.png"
+        alt="Logo"
+        style="max-width: 180px; margin-bottom: 25px; object-fit: contain"
+      />
+      <div
+        style="
+          width: 40px;
+          height: 40px;
+          border: 3px solid #2d313f;
+          border-top: 3px solid #4f46e5;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        "
+      ></div>
+      <div
+        style="
+          margin-top: 15px;
+          font-size: 13px;
+          color: #9ca3af;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        "
+      >
+        Chargement du terminal...
+      </div>
+    </div>
+
+    <!-- VERROUILLAGE PIN -->
+    <div id="pinScreen">
+      <div
+        style="
+          background: #1a1d27;
+          border: 1px solid #2d313f;
+          padding: 30px;
+          border-radius: 8px;
+          width: 280px;
+          text-align: center;
+        "
+      >
+        <h2 style="color: #ffffff; margin-bottom: 20px; font-size: 16px">
+          Entrez votre Code PIN
+        </h2>
+        <div style="margin-bottom: 20px">
+          <input
+            type="password"
+            id="pinInput"
+            readonly
+            placeholder="••••"
+            style="
+              width: 100%;
+              background: #0f111a;
+              border: 1px solid #3f4455;
+              color: #fff;
+              font-size: 24px;
+              text-align: center;
+              padding: 12px;
+              border-radius: 4px;
+              letter-spacing: 8px;
+            "
+          />
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+          "
+        >
+          <button class="btn-select" onclick="ajouterChiffre('1')">1</button>
+          <button class="btn-select" onclick="ajouterChiffre('2')">2</button>
+          <button class="btn-select" onclick="ajouterChiffre('3')">3</button>
+          <button class="btn-select" onclick="ajouterChiffre('4')">4</button>
+          <button class="btn-select" onclick="ajouterChiffre('5')">5</button>
+          <button class="btn-select" onclick="ajouterChiffre('6')">6</button>
+          <button class="btn-select" onclick="ajouterChiffre('7')">7</button>
+          <button class="btn-select" onclick="ajouterChiffre('8')">8</button>
+          <button class="btn-select" onclick="ajouterChiffre('9')">9</button>
+          <button
+            class="btn-select"
+            onclick="effacerPin()"
+            style="background: #374151; color: #f87171"
+          >
+            ⌫
+          </button>
+          <button class="btn-select" onclick="ajouterChiffre('0')">0</button>
+          <button
+            class="btn-select"
+            onclick="viderChampsPin()"
+            style="background: #4b5563; color: white; font-size: 10px"
+          >
+            C
+          </button>
+        </div>
+        <div
+          id="pinError"
+          style="
+            display: none;
+            margin-top: 15px;
+            color: #f87171;
+            font-size: 12px;
+          "
+        ></div>
+      </div>
+    </div>
+
+    <!-- BARRE DE NAVIGATION LATERALE -->
+    <div class="sidebar">
+      <div
+        class="nav-btn active"
+        data-feature="caisse"
+        onclick="changerPage('caisse', this)"
+        title="Caisse"
+      >
+        🍔
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="dashboard"
+        onclick="changerPage('dashboard', this)"
+        title="Dashboard"
+      >
+        📊
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="contrats"
+        onclick="changerPage('contrats', this)"
+        title="Contrats"
+      >
+        📄
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="factures"
+        onclick="changerPage('factures', this)"
+        title="Factures"
+      >
+        💶
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="recompenses"
+        onclick="changerPage('recompenses', this)"
+        title="Récompenses"
+      >
+        🎁
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="articles"
+        onclick="changerPage('articles', this)"
+        title="Articles"
+      >
+        🧾
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="clients"
+        onclick="changerPage('clients', this)"
+        title="Clients"
+      >
+        👥
+      </div>
+      <div
+        class="nav-btn"
+        data-feature="permissions"
+        onclick="changerPage('permissions', this)"
+        title="Permissions"
+      >
+        🔐
+      </div>
+
+      <button
+        id="themeToggleBtn"
+        class="theme-btn"
+        onclick="toggleTheme()"
+        title="Mode jour / nuit"
+      >
+        ☀️
+      </button>
+      <button
+        class="logout-btn"
+        onclick="deconnecterVendeur()"
+        title="Déconnexion"
+      >
+        🚪
+      </button>
+    </div>
+
+    <!-- CONTENEUR DES PAGES MULTIPAGES -->
+    <div class="main-content">
+      <header class="top-header">
+        <div class="top-header__brand">
+          <img
+            src="https://i.postimg.cc/v8CMGbrR/logo-hornys.png"
+            alt="Logo Horny's"
+            class="top-header__logo"
+          />
+        </div>
+
+        <div class="top-header__meta">
+          <span id="headerDate">--</span>
+          <span> • </span>
+          <span id="headerTime">--:--:--</span>
+        </div>
+
+        <div class="top-header__user">
+          <span class="top-header__label">Vendeur(euse)</span>
+          <span id="headerVendeur">Non connecté</span>
+        </div>
+      </header>
+
+      <!-- PAGE 1 : CAISSE -->
+      <div id="page-caisse" class="page active">
+        <div class="caisse-mobile-tabs">
+          <button
+            type="button"
+            class="caisse-mobile-tab active"
+            data-tab="catalogue"
+            onclick="basculerOngletCaisseMobile('catalogue', this)"
+          >
+            🍔 Catalogue
+          </button>
+          <button
+            type="button"
+            class="caisse-mobile-tab"
+            data-tab="commande"
+            onclick="basculerOngletCaisseMobile('commande', this)"
+          >
+            🧾 Commande
+            <span id="caissePanierBadge" class="caisse-mobile-tab-badge hidden"
+              >0</span
+            >
+          </button>
+        </div>
+
+        <div
+          class="section caisse-tab-panel caisse-tab-active"
+          data-tab="catalogue"
+        >
+          <h1>Terminal de Vente</h1>
+          <div class="scrollable">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+              "
+            >
+              <h2 style="margin: 0">Catalogue Articles</h2>
+            </div>
+            <div class="grid-3" id="articlesGrid"></div>
+          </div>
+        </div>
+
+        <div
+          class="section caisse-tab-panel section-commande"
+          data-tab="commande"
+        >
+          <h1>Commande en Cours</h1>
+          <div id="statusMessage" class="alert"></div>
+
+          <div
+            class="scrollable"
+            id="panierList"
+            style="flex-grow: 1; margin-bottom: 10px"
+          >
+            <div
+              style="
+                text-align: center;
+                padding: 30px 0;
+                color: #4b5563;
+                font-size: 13px;
+              "
+            >
+              La commande est vide
+            </div>
+          </div>
+
+          <div style="flex-shrink: 0">
+            <div
+              class="totaux-box hidden"
+              id="totauxDiv"
+              style="margin-bottom: 15px"
+            >
+              <div class="total-line">
+                <span>Sous-total</span><span id="sousTotal">0.00€</span>
+              </div>
+              <div
+                class="total-line hidden"
+                id="ligneReduction"
+                style="color: #34d399"
+              >
+                <span>Réduction</span><span id="montantReduction">0.00€</span>
+              </div>
+              <div
+                class="total-line hidden"
+                id="ligneFidelite"
+                style="color: #fbbf24"
+              >
+                <span>Compte fidélité</span><span id="montantFidelite"></span>
+              </div>
+              <div class="total-line final">
+                <span>Total à Payer</span><span id="total">0.00€</span>
+              </div>
+            </div>
+
+            <div id="paymentControls" style="margin-bottom: 15px">
+              <h2>Paiement</h2>
+              <button
+                class="btn-select"
+                type="button"
+                onclick="ouvrirSelectionContrat()"
+                style="width: 100%; margin-bottom: 10px"
+              >
+                Contrat entreprise
+              </button>
+              <div
+                id="contratCaisseInfo"
+                class="hidden"
+                style="
+                  margin-bottom: 10px;
+                  padding: 10px;
+                  background: rgba(52, 211, 153, 0.1);
+                  border: 1px solid #34d399;
+                  border-radius: 6px;
+                  font-size: 12px;
+                  color: #34d399;
+                "
+              ></div>
+              <div class="grid-2">
+                <button
+                  class="btn-select active"
+                  onclick="selectionnerPaiement('Cash')"
+                  data-type="Cash"
+                >
+                  Espèces
+                </button>
+                <button
+                  class="btn-select"
+                  onclick="selectionnerPaiement('Carte')"
+                  data-type="Carte"
+                >
+                  CB
+                </button>
+                <button
+                  class="btn-select"
+                  onclick="selectionnerPaiement('Ardoise')"
+                  data-type="Ardoise"
+                >
+                  Ardoise
+                </button>
+                <button
+                  class="btn-select"
+                  onclick="selectionnerPaiement('Mixte')"
+                  data-type="Mixte"
+                >
+                  Mixte
+                </button>
+              </div>
+
+              <div
+                id="ardoiseForm"
+                style="
+                  margin-top: 10px;
+                  background: #232736;
+                  padding: 10px;
+                  border-radius: 4px;
+                  border: 1px solid #3f4455;
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    color: #9ca3af;
+                    text-transform: uppercase;
+                    margin-bottom: 8px;
+                    letter-spacing: 0.7px;
+                  "
+                >
+                  Compte Fidélité Particulier
+                </div>
+                <div class="form-group" style="margin-bottom: 8px">
+                  <label>Type de compte</label>
+                  <select id="compteTypeSelect" class="form-control">
+                    <option value="Particulier">Compte particulier</option>
+                    <option value="Entreprise">Compte entreprise</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px">
+                  <label>Client / Entreprise</label>
+                  <div style="display: flex; gap: 8px; align-items: center">
+                    <select
+                      id="clientSelect"
+                      class="form-control"
+                      onchange="
+                        chargerContratClient();
+                        actualiserCompteClient();
+                      "
+                      style="flex: 1"
+                    >
+                      <option value="">-- Sélectionner un compte --</option>
+                    </select>
+                    <button
+                      class="btn-action btn-pay"
+                      type="button"
+                      onclick="creerCompteClientDepuisInterface()"
+                      style="
+                        padding: 8px 10px;
+                        font-size: 11px;
+                        min-width: 95px;
+                      "
+                    >
+                      + Compte
+                    </button>
+                  </div>
+                </div>
+                <div
+                  id="clientAccountInfo"
+                  class="hidden"
+                  style="
+                    margin-top: 8px;
+                    padding: 8px;
+                    border-radius: 4px;
+                    background: rgba(79, 70, 229, 0.08);
+                    border: 1px solid #6366f1;
+                    color: #c7d2fe;
+                    font-size: 12px;
+                  "
+                >
+                  <div id="clientPointsInfo">Points fidélité : 0</div>
+                </div>
+                <div
+                  id="clientRewards"
+                  class="hidden"
+                  style="
+                    margin-top: 10px;
+                    border-top: 1px solid #3f4455;
+                    padding-top: 10px;
+                  "
+                >
+                  <div
+                    style="
+                      font-size: 11px;
+                      color: #9ca3af;
+                      text-transform: uppercase;
+                      margin-bottom: 8px;
+                    "
+                  >
+                    Récompenses disponibles
+                  </div>
+                  <div id="clientRewardsList"></div>
+                </div>
+                <div
+                  class="form-group"
+                  style="margin-bottom: 0; margin-top: 8px"
+                >
+                  <label>Employé (Nom ou Matricule)</label>
+                  <div style="display: flex; gap: 8px">
+                    <select id="employeInput" class="form-control">
+                      <option value="">
+                        -- Sélectionner un employé --
+                      </option></select
+                    ><button
+                      class="btn-action btn-pay"
+                      type="button"
+                      onclick="creerEmployeDepuisCaisse()"
+                      style="padding: 8px 10px; font-size: 11px"
+                    >
+                      + Employé
+                    </button>
+                  </div>
+                </div>
+                <div
+                  id="infosContrat"
+                  class="hidden"
+                  style="
+                    margin-top: 8px;
+                    padding: 8px;
+                    background: rgba(52, 211, 153, 0.1);
+                    border: 1px solid #34d399;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    color: #34d399;
+                  "
+                >
+                  <div id="reductionInfo"></div>
+                </div>
+              </div>
+
+              <div
+                id="mixteForm"
+                class="hidden"
+                style="
+                  margin-top: 10px;
+                  background: #232736;
+                  padding: 10px;
+                  border-radius: 4px;
+                  border: 1px solid #3f4455;
+                "
+              >
+                <div class="form-group" style="margin-bottom: 8px">
+                  <label id="labelMontantCash">Montant Espèces (€)</label>
+                  <input
+                    type="number"
+                    id="montantCash"
+                    class="form-control"
+                    placeholder="0.00"
+                    step="0.01"
+                    onkeyup="calculerTotaux()"
+                  />
+                </div>
+                <div class="form-group" style="margin-bottom: 0">
+                  <label id="labelResteArdoise">Reste Ardoise (€)</label>
+                  <input
+                    type="text"
+                    id="montantArdoise"
+                    class="form-control"
+                    readonly
+                    style="background: #1a1d27; color: #9ca3af"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="action-grid">
+              <button class="btn-action btn-clear" onclick="viderPanier()">
+                VIDER
+              </button>
+              <button
+                class="btn-action btn-pay"
+                id="btnValider"
+                onclick="validerCommande()"
+                disabled
+              >
+                Encaisser
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="variantsContainer" class="hidden modal-overlay">
+        <div class="modal-panel" style="width: min(480px, 92vw)">
+          <h2>Personnalisation (Menu)</h2>
+          <div id="variantsContent"></div>
+          <div class="modal-choice-actions">
+            <button class="btn-action btn-cancel" onclick="fermerVariants()">
+              Annuler
+            </button>
+            <button
+              class="btn-action btn-confirm"
+              onclick="ajouterArticleAvecVariants()"
+            >
+              Confirmer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 2 : DASHBOARD -->
+      <div id="page-dashboard" class="page full-width">
+        <div class="section" style="height: 100%">
+          <h1>Tableau de Bord & Statistiques</h1>
+          <div class="scrollable" style="padding-top: 10px">
+            <div
+              style="
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 16px;
+              "
+            >
+              <label
+                for="dashboardPeriod"
+                style="color: #9ca3af; font-size: 12px"
+                >Période</label
+              >
+              <select
+                id="dashboardPeriod"
+                class="form-control"
+                style="width: 180px"
+                onchange="chargerStatistiquesDashboard(this.value)"
+              >
+                <option value="today">Aujourd’hui</option>
+                <option value="7">7 derniers jours</option>
+                <option value="30" selected>30 derniers jours</option>
+                <option value="month">Mois en cours</option>
+                <option value="all">Depuis le début</option>
+              </select>
+            </div>
+            <div class="grid-2" style="margin-bottom: 20px">
+              <div
+                style="
+                  background: #232736;
+                  padding: 20px;
+                  border-radius: 6px;
+                  border: 1px solid #3f4455;
+                "
+              >
+                <div
+                  style="
+                    font-size: 12px;
+                    color: #9ca3af;
+                    text-transform: uppercase;
+                  "
+                >
+                  Chiffre d'Affaires Total
+                </div>
+                <div
+                  id="dashTotalCA"
+                  style="
+                    font-size: 24px;
+                    font-weight: 600;
+                    color: #34d399;
+                    margin-top: 8px;
+                  "
+                >
+                  0.00€
+                </div>
+              </div>
+              <div
+                style="
+                  background: #232736;
+                  padding: 20px;
+                  border-radius: 6px;
+                  border: 1px solid #3f4455;
+                "
+              >
+                <div
+                  style="
+                    font-size: 12px;
+                    color: #9ca3af;
+                    text-transform: uppercase;
+                  "
+                >
+                  Nombre de Ventes
+                </div>
+                <div
+                  id="dashNbVentes"
+                  style="
+                    font-size: 24px;
+                    font-weight: 600;
+                    color: #818cf8;
+                    margin-top: 8px;
+                  "
+                >
+                  0
+                </div>
+              </div>
+              <div class="dashboard-stat">
+                <div class="dashboard-stat-label">Panier moyen</div>
+                <div id="dashPanierMoyen" class="dashboard-stat-value">
+                  0.00€
+                </div>
+              </div>
+              <div class="dashboard-stat">
+                <div class="dashboard-stat-label">Meilleur vendeur</div>
+                <div id="dashMeilleurVendeur" class="dashboard-stat-value">
+                  -
+                </div>
+              </div>
+              <div class="dashboard-stat">
+                <div class="dashboard-stat-label">Meilleur employé contrat</div>
+                <div id="dashMeilleurEmploye" class="dashboard-stat-value">
+                  -
+                </div>
+              </div>
+              <div class="dashboard-stat">
+                <div class="dashboard-stat-label">Article le plus vendu</div>
+                <div id="dashArticleTop" class="dashboard-stat-value">-</div>
+              </div>
+              <div class="dashboard-stat">
+                <div class="dashboard-stat-label">Répartition paiements</div>
+                <div
+                  id="dashPaiements"
+                  class="dashboard-stat-value"
+                  style="font-size: 14px"
+                >
+                  -
+                </div>
+              </div>
+            </div>
+            <h2>État des Stocks</h2>
+            <div id="dashStockContainer"></div>
+            <h2 style="margin-top: 20px">Historique des ventes</h2>
+            <div id="dashVentesContainer"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 3 : CONTRATS -->
+      <div id="page-contrats" class="page full-width">
+        <div class="section" style="height: 100%">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 1px solid #2d313f;
+              padding-bottom: 12px;
+              margin-bottom: 20px;
+            "
+          >
+            <h1 style="margin: 0; border: none; padding: 0">
+              Gestion des Contrats Clients
+            </h1>
+            <button
+              class="btn-action btn-pay"
+              onclick="ouvrirModalContrat()"
+              style="padding: 8px 15px; font-size: 12px"
+            >
+              + Nouveau Contrat
+            </button>
+          </div>
+          <div class="scrollable">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Client ID</th>
+                  <th>Type</th>
+                  <th>Réduction</th>
+                  <th>Limite (€)</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="contratsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-factures" class="page full-width">
+        <div class="section" style="height: 100%">
+          <div class="page-toolbar">
+            <h1 style="margin: 0; border: none; padding: 0">
+              Gestion de la facturation
+            </h1>
+            <button
+              class="btn-action btn-pay"
+              type="button"
+              onclick="ouvrirFormulaireFacture()"
+            >
+              + Émettre une facture
+            </button>
+          </div>
+          <div class="scrollable">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Date</th>
+                  <th>Client</th>
+                  <th>Montant</th>
+                  <th>Type paiement</th>
+                  <th>Statut</th>
+                  <th>Date paiement</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="facturesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-recompenses" class="page full-width">
+        <div class="section" style="height: 100%">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 1px solid #2d313f;
+              padding-bottom: 12px;
+              margin-bottom: 20px;
+            "
+          >
+            <h1 style="margin: 0; border: none; padding: 0">
+              Récompenses fidélité
+            </h1>
+          </div>
+          <div class="scrollable">
+            <div class="form-group">
+              <label>Nom de la récompense</label
+              ><input id="rewardNameInput" class="form-control" type="text" />
+            </div>
+            <div class="form-group">
+              <label>Article offert</label
+              ><select id="rewardArticleInput" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label>Points nécessaires</label
+              ><input
+                id="rewardPointsInput"
+                class="form-control"
+                type="number"
+                min="1"
+              />
+            </div>
+            <button
+              class="btn-action btn-confirm"
+              type="button"
+              onclick="enregistrerRecompenseDepuisPage()"
+            >
+              Enregistrer la récompense
+            </button>
+            <h2 style="margin-top: 24px">Récompenses actives</h2>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Récompense</th>
+                  <th>Article</th>
+                  <th>Points</th>
+                </tr>
+              </thead>
+              <tbody id="recompensesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-articles" class="page full-width">
+        <div class="section" style="height: 100%">
+          <div class="page-toolbar">
+            <h1 style="margin: 0; border: none; padding: 0">
+              Gestion des articles
+            </h1>
+            <button
+              class="btn-action btn-pay"
+              type="button"
+              onclick="ouvrirFormulaireArticle()"
+            >
+              + Nouvel article
+            </button>
+          </div>
+          <div class="scrollable">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Article</th>
+                  <th>Type</th>
+                  <th>Prix</th>
+                  <th>Stock</th>
+                  <th>Options</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="articlesAdminTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-permissions" class="page full-width">
+        <div class="section" style="height: 100%">
+          <div class="page-toolbar">
+            <h1 style="margin: 0; border: none; padding: 0">
+              Gestion des permissions
+            </h1>
+            <div class="table-actions">
+              <button
+                class="btn-action btn-pay"
+                type="button"
+                onclick="ouvrirFormulaireVendeur()"
+              >
+                + Nouveau vendeur
+              </button>
+              <button
+                class="btn-action btn-pay"
+                type="button"
+                onclick="ouvrirFormulairePermission()"
+              >
+                + Permission
+              </button>
+            </div>
+          </div>
+          <div class="scrollable">
+            <p style="color: #9ca3af">
+              Autorisez ou bloquez les fonctionnalités par grade.
+            </p>
+            <h2>Grades des vendeurs</h2>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Vendeur</th>
+                  <th>Email</th>
+                  <th>Grade</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="gradesVendeursTableBody"></tbody>
+            </table>
+            <h2 style="margin-top: 24px">Accès par fonctionnalité</h2>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Fonctionnalité</th>
+                  <th>ADMIN</th>
+                  <th>MANAGER</th>
+                  <th>VENDEUR</th>
+                </tr>
+              </thead>
+              <tbody id="permissionsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-clients" class="page full-width">
+        <div class="section" style="height: 100%">
+          <div class="page-toolbar">
+            <h1 style="margin: 0; border: none; padding: 0">
+              Gestion des clients
+            </h1>
+            <button
+              class="btn-action btn-pay"
+              type="button"
+              onclick="ouvrirFicheClient()"
+            >
+              + Nouveau client
+            </button>
+          </div>
+          <div class="form-group">
+            <input
+              id="clientsSearchInput"
+              class="form-control"
+              type="search"
+              placeholder="Rechercher par nom ou téléphone"
+              oninput="afficherTableauClients()"
+            />
+          </div>
+          <div class="scrollable">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th>Téléphone</th>
+                  <th>Points</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="clientsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="articleModal" class="hidden modal-overlay">
+      <div class="modal-panel">
+        <div class="page-toolbar">
+          <h2
+            id="articleModalTitle"
+            style="margin: 0; font-size: 18px; color: #fff"
+          >
+            Nouvel article
+          </h2>
+          <button
+            type="button"
+            class="btn-action btn-cancel"
+            onclick="fermerFormulaireArticle()"
+          >
+            Fermer
+          </button>
+        </div>
+        <input type="hidden" id="articleIdInput" />
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nom</label
+            ><input
+              id="articleNomInput"
+              class="form-control"
+              type="text"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label>Type</label
+            ><input
+              id="articleTypeInput"
+              class="form-control"
+              type="text"
+              placeholder="Menu, Burger, Boisson..."
+            />
+          </div>
+          <div class="form-group">
+            <label>Prix</label
+            ><input
+              id="articlePrixInput"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div class="form-group">
+            <label>Stock</label
+            ><input
+              id="articleStockInput"
+              class="form-control"
+              type="number"
+              min="0"
+              step="1"
+            />
+          </div>
+          <div class="form-group">
+            <label>Seuil d’alerte</label
+            ><input
+              id="articleSeuilInput"
+              class="form-control"
+              type="number"
+              min="0"
+              step="1"
+            />
+          </div>
+          <div class="form-group">
+            <label>Statut</label
+            ><select id="articleActifInput" class="form-control">
+              <option value="true">Actif</option>
+              <option value="false">Désactivé</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label
+          ><textarea
+            id="articleDescriptionInput"
+            class="form-control"
+            rows="2"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label>Options personnalisables</label
+          ><textarea
+            id="articleOptionsInput"
+            class="form-control"
+            rows="5"
+            placeholder="Burger : Boeuf, Poulet, Poisson, Végétarien&#10;Boisson : Cola, Jus de raisin"
+          ></textarea>
+        </div>
+        <button
+          class="btn-action btn-confirm"
+          type="button"
+          onclick="enregistrerArticleDepuisPage()"
+        >
+          Enregistrer l’article
+        </button>
+      </div>
+    </div>
+
+    <div id="vendeurModal" class="hidden modal-overlay">
+      <div class="modal-panel">
+        <div class="page-toolbar">
+          <h2
+            id="vendeurModalTitle"
+            style="margin: 0; font-size: 18px; color: #fff"
+          >
+            Nouveau vendeur
+          </h2>
+          <button
+            type="button"
+            class="btn-action btn-cancel"
+            onclick="fermerFormulaireVendeur()"
+          >
+            Fermer
+          </button>
+        </div>
+        <input type="hidden" id="vendeurIdInput" />
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nom</label
+            ><input id="vendeurNomInput" class="form-control" type="text" />
+          </div>
+          <div class="form-group">
+            <label>Email</label
+            ><input id="vendeurEmailInput" class="form-control" type="email" />
+          </div>
+          <div class="form-group">
+            <label>Code PIN</label
+            ><input
+              id="vendeurPinInput"
+              class="form-control"
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+            />
+          </div>
+          <div class="form-group">
+            <label>Grade</label
+            ><select id="vendeurRoleInput" class="form-control">
+              <option value="ADMIN">ADMIN</option>
+              <option value="MANAGER">MANAGER</option>
+              <option value="VENDEUR">VENDEUR</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Statut</label
+            ><select id="vendeurActifInput" class="form-control">
+              <option value="true">Actif</option>
+              <option value="false">Inactif</option>
+            </select>
+          </div>
+        </div>
+        <button
+          class="btn-action btn-confirm"
+          type="button"
+          onclick="enregistrerVendeurDepuisPage()"
+        >
+          Enregistrer le vendeur
+        </button>
+      </div>
+    </div>
+
+    <div id="permissionModal" class="hidden modal-overlay">
+      <div class="modal-panel">
+        <div class="page-toolbar">
+          <h2 style="margin: 0; font-size: 18px; color: #fff">
+            Modifier une permission
+          </h2>
+          <button
+            type="button"
+            class="btn-action btn-cancel"
+            onclick="fermerFormulairePermission()"
+          >
+            Fermer
+          </button>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Grade</label
+            ><select id="permissionRoleInput" class="form-control">
+              <option value="ADMIN">ADMIN</option>
+              <option value="MANAGER">MANAGER</option>
+              <option value="VENDEUR">VENDEUR</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fonctionnalité</label
+            ><select id="permissionFeatureInput" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label>Accès autorisé</label
+            ><select id="permissionAllowedInput" class="form-control">
+              <option value="true">Oui</option>
+              <option value="false">Non</option>
+            </select>
+          </div>
+        </div>
+        <button
+          class="btn-action btn-confirm"
+          type="button"
+          onclick="enregistrerPermissionDepuisFormulaire()"
+        >
+          Enregistrer la permission
+        </button>
+      </div>
+    </div>
+
+    <div
+      id="contratModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2100;
+      "
+    >
+      <div
+        style="
+          width: min(620px, 92vw);
+          max-height: 90vh;
+          overflow-y: auto;
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+          "
+        >
+          <h2 style="margin: 0; font-size: 18px; color: #fff">
+            Contrat entreprise
+          </h2>
+          <button
+            type="button"
+            class="btn-action btn-cancel"
+            onclick="fermerSelectionContrat()"
+            style="padding: 8px 12px"
+          >
+            Fermer
+          </button>
+        </div>
+        <div id="contratSelectionList"></div>
+      </div>
+    </div>
+
+    <div
+      id="contratFormModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2200;
+      "
+    >
+      <div
+        style="
+          width: min(680px, 92vw);
+          max-height: 90vh;
+          overflow-y: auto;
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <h2 id="contratModalTitle" style="color: #fff">
+          Nouveau contrat entreprise
+        </h2>
+        <div class="form-group">
+          <label>Compte entreprise</label>
+          <select
+            id="contratCompanyInput"
+            class="form-control"
+            autocomplete="off"
+          >
+            <option value="">Sélectionner un compte entreprise</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Type</label
+          ><select
+            id="contratTypeInput"
+            class="form-control"
+            onchange="actualiserFormulaireContrat()"
+          >
+            <option value="ARDOISE">Ardoise</option>
+            <option value="DEMI_ARDOISE">Demi-Ardoise</option>
+            <option value="HEBDOMADAIRE_FIXE">Hebdomadaire fixe</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Responsable</label
+          ><input id="contratResponsibleInput" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Téléphone responsable</label
+          ><input id="contratPhoneInput" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Webhook Discord</label
+          ><input id="contratWebhookInput" class="form-control" type="url" />
+        </div>
+        <div id="contratDemiFields" class="form-group">
+          <label>Part entreprise (%)</label
+          ><input
+            id="contratPercentInput"
+            class="form-control"
+            type="number"
+            min="0"
+            max="100"
+            value="30"
+            oninput="actualiserFormulaireContrat()"
+          />
+          <div
+            id="contratEmployeePercent"
+            style="font-size: 12px; color: #9ca3af; margin-top: 5px"
+          ></div>
+        </div>
+        <div id="contratHebdoFields" class="hidden">
+          <div class="form-group">
+            <label>Quantité incluse</label
+            ><input
+              id="contratQuantityInput"
+              class="form-control"
+              type="number"
+              min="0"
+            />
+          </div>
+          <div class="form-group">
+            <label>Remise (%)</label
+            ><input
+              id="contratDiscountInput"
+              class="form-control"
+              type="number"
+              min="0"
+              max="100"
+              value="0"
+            />
+          </div>
+        </div>
+        <div class="modal-choice-actions">
+          <button
+            class="btn-action btn-cancel"
+            onclick="fermerFormulaireContrat()"
+          >
+            Annuler</button
+          ><button
+            class="btn-action btn-confirm"
+            onclick="enregistrerContratDepuisFormulaire()"
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="factureFormModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2200;
+      "
+    >
+      <div
+        style="
+          width: min(560px, 92vw);
+          max-height: 90vh;
+          overflow-y: auto;
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <h2 id="factureModalTitle" style="color: #fff">
+          Émettre une facture
+        </h2>
+        <input id="factureIdInput" type="hidden" />
+        <div class="form-group">
+          <label>Client</label>
+          <select id="factureClientInput" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Description / Articles</label
+          ><textarea
+            id="factureArticlesInput"
+            class="form-control"
+            rows="3"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label>Montant (€)</label
+          ><input
+            id="factureMontantInput"
+            class="form-control"
+            type="number"
+            min="0"
+            step="0.01"
+          />
+        </div>
+        <div class="form-group">
+          <label>Type de paiement</label
+          ><select id="factureTypePaiementInput" class="form-control">
+            <option value="Cash">Cash</option>
+            <option value="CB">CB</option>
+            <option value="Virement">Virement</option>
+            <option value="Ardoise">Ardoise</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Statut</label
+          ><select id="factureStatutInput" class="form-control">
+            <option value="En attente">En attente</option>
+            <option value="Payée">Payée</option>
+            <option value="Annulée">Annulée</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notes</label
+          ><textarea
+            id="factureNotesInput"
+            class="form-control"
+            rows="2"
+          ></textarea>
+        </div>
+        <div class="modal-choice-actions">
+          <button
+            class="btn-action btn-cancel"
+            onclick="fermerFormulaireFacture()"
+          >
+            Annuler</button
+          ><button
+            class="btn-action btn-confirm"
+            onclick="enregistrerFactureDepuisFormulaire()"
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="clientSelectionFideliteModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2050;
+      "
+    >
+      <div
+        style="
+          width: min(520px, 92vw);
+          max-height: 80vh;
+          overflow: auto;
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+          "
+        >
+          <h2 style="margin: 0; color: #fff">
+            Sélectionner un compte fidélité
+          </h2>
+          <button
+            type="button"
+            class="btn-action btn-cancel"
+            onclick="fermerSelectionClientFidelite()"
+          >
+            Fermer
+          </button>
+        </div>
+        <div class="form-group">
+          <label>Rechercher un client</label>
+          <input
+            id="clientFideliteSearchInput"
+            class="form-control"
+            type="text"
+            oninput="afficherClientsFidelite()"
+            placeholder="Nom ou téléphone"
+          />
+        </div>
+        <div
+          id="clientFideliteSearchResults"
+          style="max-height: 320px; overflow-y: auto; margin-top: 10px"
+        ></div>
+      </div>
+    </div>
+
+    <div
+      id="clientLoyaltyModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+      "
+    >
+      <div
+        style="
+          width: min(520px, 92vw);
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        "
+      >
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+          "
+        >
+          <h2 style="margin: 0; font-size: 18px; color: #ffffff">
+            Compte fidélité
+          </h2>
+          <button
+            type="button"
+            class="btn-action btn-cancel"
+            onclick="refuserCompteFidelite()"
+            style="padding: 8px 12px; font-size: 11px; min-width: 80px"
+          >
+            Non, il n'en veut pas
+          </button>
+        </div>
+
+        <div id="clientLoyaltyChoice">
+          <div style="font-size: 13px; color: #cbd5e1; margin-bottom: 12px">
+            Le client a-t-il déjà un compte fidélité ?
+          </div>
+          <div class="modal-choice-actions">
+            <button
+              class="btn-action btn-confirm"
+              type="button"
+              onclick="montrerEtapeCompteClient('search')"
+            >
+              Oui, sélectionner
+            </button>
+            <button
+              class="btn-action btn-clear"
+              type="button"
+              onclick="montrerEtapeCompteClient('create')"
+            >
+              Non, créer
+            </button>
+          </div>
+        </div>
+
+        <div id="clientLoyaltySearch" class="hidden">
+          <div class="form-group" style="margin-top: 8px">
+            <label>Recherche client</label>
+            <input
+              id="clientSearchInput"
+              type="text"
+              class="form-control"
+              placeholder="Nom, prénom ou téléphone"
+              oninput="rechercherCompteClientLoyalty()"
+            />
+          </div>
+          <div
+            id="clientSearchResults"
+            style="max-height: 220px; overflow-y: auto; margin-top: 10px"
+          ></div>
+          <div class="modal-choice-actions" style="margin-top: 12px">
+            <button
+              class="btn-action btn-cancel"
+              type="button"
+              onclick="montrerEtapeCompteClient('choice')"
+            >
+              Retour
+            </button>
+            <button
+              class="btn-action btn-confirm"
+              type="button"
+              onclick="montrerEtapeCompteClient('create')"
+            >
+              Créer un compte
+            </button>
+          </div>
+        </div>
+
+        <div id="clientLoyaltyCreate" class="hidden">
+          <div class="form-group">
+            <label>Type</label>
+            <select
+              id="clientCreateType"
+              class="form-control"
+              onchange="toggleTypeCompteModal(this.value)"
+            >
+              <option value="Particulier">Compte particulier</option>
+              <option value="Entreprise">Compte entreprise</option>
+            </select>
+          </div>
+          <div id="clientCreateParticulier">
+            <div class="form-group">
+              <label>Prénom</label>
+              <input
+                id="clientPrenomInput"
+                type="text"
+                class="form-control"
+                placeholder="Ex: Jean"
+              />
+            </div>
+            <div class="form-group">
+              <label>Nom</label>
+              <input
+                id="clientNomInput"
+                type="text"
+                class="form-control"
+                placeholder="Ex: Dupont"
+              />
+            </div>
+            <div class="form-group">
+              <label>Téléphone</label>
+              <input
+                id="clientTelephoneInput"
+                type="tel"
+                class="form-control"
+                placeholder="Ex: 06 12 34 56 78"
+              />
+            </div>
+          </div>
+          <div id="clientCreateEntreprise" class="hidden">
+            <div class="form-group">
+              <label>Nom ou matricule</label>
+              <input
+                id="clientMatriculeInput"
+                type="text"
+                class="form-control"
+                placeholder="Nom de l’entreprise ou matricule"
+              />
+            </div>
+          </div>
+          <div class="modal-choice-actions" style="margin-top: 12px">
+            <button
+              class="btn-action btn-cancel"
+              type="button"
+              onclick="montrerEtapeCompteClient('choice')"
+            >
+              Retour
+            </button>
+            <button
+              class="btn-action btn-confirm"
+              type="button"
+              onclick="creerCompteClientDepuisModal()"
+            >
+              Valider
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="employeSelectionModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2300;
+      "
+    >
+      <div
+        style="
+          width: min(420px, 92vw);
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+          "
+        >
+          <h2 style="color: #fff; margin: 0">Choisir un employé</h2>
+          <button
+            class="btn-action btn-pay"
+            type="button"
+            onclick="
+              fermerSelectionEmploye();
+              creerEmployeDepuisCaisse();
+            "
+          >
+            + Créer
+          </button>
+        </div>
+        <div class="form-group">
+          <label>Rechercher un employé</label>
+          <input
+            id="employeSelectionSearchInput"
+            class="form-control"
+            type="text"
+            oninput="afficherEmployesSelection()"
+            placeholder="Nom ou matricule"
+          />
+        </div>
+        <select
+          id="employeSelectionInput"
+          class="form-control"
+          style="display: none"
+        ></select>
+        <div
+          id="employeSelectionResults"
+          style="max-height: 260px; overflow-y: auto"
+        ></div>
+        <div class="modal-choice-actions">
+          <button
+            class="btn-action btn-cancel"
+            type="button"
+            onclick="fermerSelectionEmploye()"
+          >
+            Annuler
+          </button>
+          <button
+            class="btn-action btn-confirm"
+            type="button"
+            onclick="confirmerSelectionEmploye()"
+          >
+            Valider
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="employeModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2300;
+      "
+    >
+      <div
+        style="
+          width: min(420px, 92vw);
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <h2 style="color: #fff; margin-top: 0">Nouvel employé</h2>
+        <div class="form-group">
+          <label>Nom de l’employé</label>
+          <input id="employeNameInput" class="form-control" type="text" />
+        </div>
+        <div class="form-group">
+          <label>Matricule</label>
+          <input id="employeIdentifierInput" class="form-control" type="text" />
+        </div>
+        <div class="modal-choice-actions">
+          <button
+            class="btn-action btn-cancel"
+            type="button"
+            onclick="fermerEmployeModal()"
+          >
+            Annuler
+          </button>
+          <button
+            class="btn-action btn-confirm"
+            type="button"
+            onclick="enregistrerEmployeDepuisModal()"
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="recompenseModal"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2400;
+      "
+    >
+      <div
+        style="
+          width: min(460px, 92vw);
+          max-height: 80vh;
+          overflow: auto;
+          background: #171b27;
+          border: 1px solid #2d313f;
+          border-radius: 12px;
+          padding: 22px;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+          "
+        >
+          <h2 style="margin: 0; color: #fff">Utiliser des points</h2>
+          <button
+            class="btn-action btn-cancel"
+            type="button"
+            onclick="fermerSelectionRecompense()"
+          >
+            Fermer
+          </button>
+        </div>
+        <div id="recompenseSelectionList"></div>
+      </div>
+    </div>
+
+    <div id="clientGestionModal" class="hidden modal-overlay">
+      <div
+        class="modal-panel"
+        style="width: min(760px, 94vw); max-height: 90vh; overflow: auto"
+      >
+        <div class="page-toolbar">
+          <h2
+            id="clientGestionTitle"
+            style="margin: 0; font-size: 18px; color: #fff"
+          >
+            Fiche client
+          </h2>
+          <button
+            class="btn-action btn-cancel"
+            type="button"
+            onclick="fermerFicheClient()"
+          >
+            Fermer
+          </button>
+        </div>
+        <input type="hidden" id="clientGestionId" />
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nom complet</label
+            ><input id="clientGestionNom" class="form-control" type="text" />
+          </div>
+          <div class="form-group">
+            <label>Type</label
+            ><select id="clientGestionType" class="form-control">
+              <option>Particulier</option>
+              <option>Entreprise</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Téléphone / contact</label
+            ><input
+              id="clientGestionContact"
+              class="form-control"
+              type="text"
+            />
+          </div>
+          <div class="form-group">
+            <label>Adresse</label
+            ><input
+              id="clientGestionAdresse"
+              class="form-control"
+              type="text"
+            />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Points fidélité</label>
+          <div style="display: flex; gap: 8px">
+            <input
+              id="clientGestionPoints"
+              class="form-control"
+              type="number"
+              min="0"
+            /><button
+              class="btn-action btn-confirm"
+              type="button"
+              onclick="enregistrerPointsClient()"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </div>
+        <div class="modal-choice-actions">
+          <button
+            class="btn-action btn-confirm"
+            type="button"
+            onclick="enregistrerFicheClient()"
+          >
+            Enregistrer les informations</button
+          ><button
+            class="btn-action btn-clear"
+            type="button"
+            onclick="archiverFicheClient()"
+          >
+            Archiver le client
+          </button>
+        </div>
+        <h2 style="margin-top: 24px">Anciennes commandes</h2>
+        <div id="clientHistoriqueContainer"></div>
+      </div>
+    </div>
+
+    <!-- Injection dynamique du JS -->
+    <?!= include('JS'); ?>
+  </body>
+</html>

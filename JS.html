@@ -1,0 +1,2456 @@
+<script>
+  let panier = [];
+  let vendeurActif = null;
+  let vendeurNomActif = "";
+  let gradeVendeurActif = "";
+  let permissionsVendeur = {};
+  let paiementActif = "Facture";
+  let articlesData = [];
+  let vendeursData = [];
+  let clientsData = [];
+  let contratsData = [];
+  let employesData = [];
+  let ventesData = [];
+  let dashboardData = { totalCA: 0, nbVentes: 0 };
+  let contratActif = null;
+  let articleEnCours = null;
+  let contratEnEditionId = null;
+  let employeContratActif = null;
+  let recompensesData = [];
+  let recompenseActive = null;
+  let facturesData = [];
+  let factureCompteVerifie = false;
+  let encaissementEnCours = false;
+  let codeSaisiPin = "";
+  let themeMode = "night";
+  let deviseActuelle = "€";
+  let configurationPermissions = null;
+  let historiqueClientRequestId = 0;
+  const loyalityRewards = [
+    { key: "boisson", label: "Boisson", points: 10 },
+    { key: "burger", label: "Burger", points: 100 },
+    { key: "bisou", label: "Bisou", points: 1000 },
+  ];
+
+  function formaterMonnaie(valeur) {
+    const montant = Number(valeur) || 0;
+    return `${montant.toFixed(2)} ${deviseActuelle}`;
+  }
+
+  function actualiserLibellesDevise() {
+    const montantCash = document.getElementById("labelMontantCash");
+    const resteArdoise = document.getElementById("labelResteArdoise");
+    if (montantCash)
+      montantCash.textContent = `Montant Espèces (${deviseActuelle})`;
+    if (resteArdoise)
+      resteArdoise.textContent = `Reste Ardoise (${deviseActuelle})`;
+  }
+
+  function applyTheme(mode) {
+    document.body.classList.toggle("theme-day", mode === "day");
+    const btn = document.getElementById("themeToggleBtn");
+    if (btn) {
+      btn.textContent = mode === "night" ? "☀️" : "🌙";
+      btn.title =
+        mode === "night" ? "Passer en mode jour" : "Passer en mode nuit";
+    }
+  }
+
+  function toggleTheme() {
+    themeMode = themeMode === "night" ? "day" : "night";
+    applyTheme(themeMode);
+  }
+
+  function initialiserApp() {
+    google.script.run
+      .withSuccessHandler(function (data) {
+        try {
+          const parsed = JSON.parse(data);
+          vendeursData = parsed.vendeurs || [];
+          articlesData = parsed.articles || [];
+          clientsData = parsed.clients || [];
+          contratsData = parsed.contrats || [];
+          employesData = parsed.employes || [];
+          recompensesData = parsed.recompenses || [];
+          const vendeurCharge = vendeursData.find(
+            (vendeur) => String(vendeur.id) === String(vendeurActif),
+          );
+          if (vendeurCharge) {
+            gradeVendeurActif = vendeurCharge.role || "ADMIN";
+            permissionsVendeur = vendeurCharge.permissions || {};
+          }
+          ventesData = parsed.ventes || [];
+          dashboardData = parsed.dashboard || { totalCA: 0, nbVentes: 0 };
+          deviseActuelle = parsed.devise || "€";
+          actualiserLibellesDevise();
+          initialiserZonePaiement();
+
+          applyTheme(themeMode);
+          if (!vendeurActif) {
+            afficherVendeursPin();
+          } else {
+            const pinScreen = document.getElementById("pinScreen");
+            if (pinScreen) {
+              pinScreen.style.display = "none";
+              pinScreen.style.opacity = "1";
+            }
+          }
+          afficherArticles();
+          remplirSelectClients();
+          afficherTableauClients();
+          mettreAJourDashboard(dashboardData, ventesData);
+          chargerStatistiquesDashboard("30", false);
+          remplirPageRecompenses();
+          remplirTableauContrats();
+          remplirTableauArticles();
+          mettreAJourHeaderDateHeure();
+          appliquerPermissions();
+          if (permissionsVendeur.permissions === true)
+            chargerGestionPermissions();
+
+          const loader = document.getElementById("loadingScreen");
+          if (loader) {
+            loader.style.opacity = "0";
+            setTimeout(() => {
+              loader.style.display = "none";
+            }, 400);
+          }
+        } catch (err) {
+          console.error("Erreur parsing initialisation", err);
+        }
+      })
+      .withFailureHandler(function (error) {
+        const message =
+          error && error.message
+            ? error.message
+            : "Impossible de charger les données.";
+        console.error("Erreur chargement POS", error);
+        afficherStatus(message, "error");
+        const loader = document.getElementById("loadingScreen");
+        if (loader) loader.style.display = "none";
+      })
+      .chargerDonneesJSON();
+  }
+
+  function mettreAJourHeaderDateHeure() {
+    const maintenant = new Date();
+    const date = maintenant.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+    const heure = maintenant.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+
+    const dateEl = document.getElementById("headerDate");
+    const timeEl = document.getElementById("headerTime");
+    if (dateEl)
+      dateEl.textContent = date.charAt(0).toUpperCase() + date.slice(1);
+    if (timeEl) timeEl.textContent = heure;
+  }
+
+  setInterval(mettreAJourHeaderDateHeure, 1000);
+
+  function mettreAJourHeaderVendeur() {
+    const headerVendeur = document.getElementById("headerVendeur");
+    if (!headerVendeur) return;
+
+    const vendeur = vendeursData.find(
+      (v) => String(v.id) === String(vendeurActif),
+    );
+    headerVendeur.textContent = vendeur
+      ? `${vendeur.nom} · ${vendeur.role || "ADMIN"}`
+      : vendeurNomActif || "Non connecté";
+  }
+
+  function appliquerPermissions() {
+    const permissions = permissionsVendeur || {};
+    document.querySelectorAll("[data-feature]").forEach((element) => {
+      element.classList.toggle(
+        "hidden",
+        permissions[element.dataset.feature] !== true,
+      );
+    });
+    if (
+      permissions.permissions !== true &&
+      document.getElementById("page-permissions")?.classList.contains("active")
+    )
+      changerPage("caisse");
+  }
+
+  function chargerGestionPermissions() {
+    google.script.run
+      .withSuccessHandler(remplirGestionPermissions)
+      .withFailureHandler((error) => {
+        const message = error?.message || "Accès refusé.";
+        const body = document.getElementById("permissionsTableBody");
+        const gradesBody = document.getElementById("gradesVendeursTableBody");
+        if (body) body.innerHTML = `<tr><td colspan="4">${message}</td></tr>`;
+        if (gradesBody)
+          gradesBody.innerHTML = `<tr><td colspan="3">${message}</td></tr>`;
+        console.error("Erreur chargement permissions", error);
+        afficherStatus(message, "error");
+      })
+      .obtenirConfigurationPermissions(vendeurActif);
+  }
+
+  function remplirGestionPermissions(configuration) {
+    const body = document.getElementById("permissionsTableBody");
+    if (!body) return;
+    configurationPermissions = configuration || null;
+    const features = Array.isArray(configuration?.features)
+      ? configuration.features
+      : [
+          ["caisse", "Caisse"],
+          ["dashboard", "Dashboard"],
+          ["contrats", "Contrats"],
+          ["factures", "Factures"],
+          ["recompenses", "Récompenses"],
+          ["articles", "Articles"],
+          ["clients", "Clients"],
+          ["permissions", "Permissions"],
+        ];
+    const roles = Array.isArray(configuration?.roles)
+      ? configuration.roles
+      : ["ADMIN", "MANAGER", "VENDEUR"];
+    const rows = Array.isArray(configuration?.rows) ? configuration.rows : [];
+    const gradesBody = document.getElementById("gradesVendeursTableBody");
+    if (gradesBody) {
+      gradesBody.innerHTML = vendeursData.length
+        ? vendeursData
+            .map(
+              (vendeur) =>
+                `<tr><td>${vendeur.nom}</td><td>${vendeur.email || "-"}</td><td><select class="form-control" id="grade-${vendeur.id}"><option value="ADMIN" ${vendeur.role === "ADMIN" ? "selected" : ""}>ADMIN</option><option value="MANAGER" ${vendeur.role === "MANAGER" ? "selected" : ""}>MANAGER</option><option value="VENDEUR" ${vendeur.role === "VENDEUR" ? "selected" : ""}>VENDEUR</option></select></td><td><div class="table-actions"><button class="btn-select" type="button" onclick="modifierGradeVendeur('${vendeur.id}')">Grade</button><button class="btn-select" type="button" onclick="ouvrirFormulaireVendeur('${vendeur.id}')">Modifier</button></div></td></tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="4">Aucun vendeur chargé.</td></tr>';
+    }
+    const values = {};
+    rows.forEach((row) => {
+      values[
+        `${String(row[0]).trim().toUpperCase()}|${String(row[1]).trim().toLowerCase()}`
+      ] = row[2] === true || String(row[2]).toUpperCase() === "TRUE";
+    });
+    const configuredValues = configuration?.permissions || values;
+    body.innerHTML = features
+      .map(
+        ([feature, label]) =>
+          `<tr><td>${label}</td>${roles
+            .map(
+              (role) =>
+                `<td><input type="checkbox" ${configuredValues[`${String(role).trim().toUpperCase()}|${String(feature).trim().toLowerCase()}`] ? "checked" : ""} onchange="modifierPermission('${role}', '${feature}', this.checked)"></td>`,
+            )
+            .join("")}</tr>`,
+      )
+      .join("");
+  }
+
+  function ouvrirFormulaireVendeur(id) {
+    const vendeur = vendeursData.find((item) => String(item.id) === String(id));
+    document.getElementById("vendeurModalTitle").textContent = vendeur
+      ? "Modifier le vendeur"
+      : "Nouveau vendeur";
+    document.getElementById("vendeurIdInput").value = vendeur?.id || "";
+    document.getElementById("vendeurNomInput").value = vendeur?.nom || "";
+    document.getElementById("vendeurEmailInput").value = vendeur?.email || "";
+    document.getElementById("vendeurPinInput").value = vendeur?.code || "";
+    document.getElementById("vendeurRoleInput").value =
+      vendeur?.role || "VENDEUR";
+    document.getElementById("vendeurActifInput").value =
+      vendeur?.actif === false ? "false" : "true";
+    document.getElementById("vendeurModal").classList.remove("hidden");
+  }
+
+  function fermerFormulaireVendeur() {
+    document.getElementById("vendeurModal").classList.add("hidden");
+  }
+
+  function enregistrerVendeurDepuisPage() {
+    const vendeur = {
+      id: document.getElementById("vendeurIdInput").value || null,
+      nom: document.getElementById("vendeurNomInput").value,
+      email: document.getElementById("vendeurEmailInput").value,
+      code: document.getElementById("vendeurPinInput").value,
+      role: document.getElementById("vendeurRoleInput").value,
+      actif: document.getElementById("vendeurActifInput").value === "true",
+    };
+    afficherChargementAction("Enregistrement du vendeur...");
+    google.script.run
+      .withSuccessHandler(() => {
+        fermerFormulaireVendeur();
+        initialiserApp();
+        masquerChargementAction();
+        afficherStatus("Vendeur enregistré.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur vendeur.", "error");
+      })
+      .sauvegarderVendeur(vendeurActif, vendeur);
+  }
+
+  function ouvrirFormulairePermission() {
+    const select = document.getElementById("permissionFeatureInput");
+    const features = configurationPermissions?.features || [];
+    select.innerHTML = features
+      .map(([feature, label]) => `<option value="${feature}">${label}</option>`)
+      .join("");
+    document.getElementById("permissionRoleInput").value = "ADMIN";
+    document.getElementById("permissionAllowedInput").value = "true";
+    document.getElementById("permissionModal").classList.remove("hidden");
+  }
+
+  function fermerFormulairePermission() {
+    document.getElementById("permissionModal").classList.add("hidden");
+  }
+
+  function enregistrerPermissionDepuisFormulaire() {
+    const role = document.getElementById("permissionRoleInput").value;
+    const feature = document.getElementById("permissionFeatureInput").value;
+    const allowed =
+      document.getElementById("permissionAllowedInput").value === "true";
+    if (!feature)
+      return afficherStatus("Choisissez une fonctionnalité.", "error");
+    fermerFormulairePermission();
+    modifierPermission(role, feature, allowed);
+  }
+
+  function getPermissionsForRole(role) {
+    const normalizedRole = String(role || "VENDEUR").toUpperCase();
+    const permissions = {};
+    [
+      "caisse",
+      "dashboard",
+      "contrats",
+      "factures",
+      "recompenses",
+      "articles",
+      "clients",
+      "permissions",
+    ].forEach((feature) => {
+      permissions[feature] =
+        normalizedRole === "ADMIN" ||
+        (normalizedRole === "MANAGER" && feature !== "permissions") ||
+        (normalizedRole === "VENDEUR" && feature === "caisse");
+    });
+    return permissions;
+  }
+
+  function modifierGradeVendeur(vendeurId) {
+    const role = document.getElementById(`grade-${vendeurId}`).value;
+    afficherChargementAction("Mise à jour du grade...");
+    google.script.run
+      .withSuccessHandler((configuration) => {
+        const vendeur = vendeursData.find(
+          (item) => String(item.id) === String(vendeurId),
+        );
+        if (vendeur) vendeur.role = role;
+        // Use server-returned configuration to update current permissions
+        if (String(vendeurId) === String(vendeurActif)) {
+          gradeVendeurActif = role;
+          permissionsVendeur = {};
+          if (configuration && Array.isArray(configuration.rows)) {
+            configuration.rows.forEach((row) => {
+              const rowRole = String(row[0] || "").toUpperCase();
+              const feature = String(row[1] || "").toLowerCase();
+              const allowed =
+                row[2] === true || String(row[2]).toUpperCase() === "TRUE";
+              if (rowRole === String(role).toUpperCase())
+                permissionsVendeur[feature] = allowed;
+            });
+          } else {
+            permissionsVendeur = getPermissionsForRole(role);
+          }
+          appliquerPermissions();
+        }
+        masquerChargementAction();
+        afficherStatus("Grade enregistré.", "success");
+        if (configuration) remplirGestionPermissions(configuration);
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur grade.", "error");
+      })
+      .sauvegarderGradeVendeur(vendeurActif, vendeurId, role);
+  }
+
+  function modifierPermission(role, feature, allowed) {
+    afficherChargementAction("Mise à jour des permissions...");
+    google.script.run
+      .withSuccessHandler((configuration) => {
+        masquerChargementAction();
+        // If the current active seller's grade was modified, recompute permissions from server configuration
+        if (
+          String(gradeVendeurActif).toUpperCase() === String(role).toUpperCase()
+        ) {
+          permissionsVendeur = {};
+          if (configuration && Array.isArray(configuration.rows)) {
+            configuration.rows.forEach((row) => {
+              const rowRole = String(row[0] || "").toUpperCase();
+              const feat = String(row[1] || "").toLowerCase();
+              const allowedVal =
+                row[2] === true || String(row[2]).toUpperCase() === "TRUE";
+              if (rowRole === String(gradeVendeurActif).toUpperCase())
+                permissionsVendeur[feat] = allowedVal;
+            });
+          } else {
+            permissionsVendeur = getPermissionsForRole(gradeVendeurActif);
+          }
+          appliquerPermissions();
+          if (permissionsVendeur.permissions === true)
+            chargerGestionPermissions();
+        }
+        remplirGestionPermissions(configuration);
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur permission.", "error");
+        chargerGestionPermissions();
+      })
+      .sauvegarderPermission(vendeurActif, role, feature, allowed);
+  }
+
+  function changerPage(pageId, elementBtn) {
+    if (permissionsVendeur[pageId] !== true) {
+      afficherStatus(
+        "Votre grade ne permet pas d’accéder à cette page.",
+        "error",
+      );
+      return;
+    }
+    document
+      .querySelectorAll(".page")
+      .forEach((p) => p.classList.remove("active"));
+    document.getElementById("page-" + pageId).classList.add("active");
+
+    document
+      .querySelectorAll(".sidebar .nav-btn")
+      .forEach((b) => b.classList.remove("active"));
+    if (elementBtn) elementBtn.classList.add("active");
+
+    if (pageId === "dashboard") {
+      chargerStatistiquesDashboard(
+        document.getElementById("dashboardPeriod")?.value || "30",
+        false,
+      );
+    }
+    if (pageId === "permissions") chargerGestionPermissions();
+    if (pageId === "factures") chargerFactures();
+  }
+
+  function basculerOngletCaisseMobile(tab, elementBtn) {
+    document
+      .querySelectorAll("#page-caisse .caisse-tab-panel")
+      .forEach((panel) =>
+        panel.classList.toggle("caisse-tab-active", panel.dataset.tab === tab),
+      );
+    document
+      .querySelectorAll(".caisse-mobile-tab")
+      .forEach((btn) => btn.classList.toggle("active", btn === elementBtn));
+  }
+
+  function remplirTableauArticles() {
+    const body = document.getElementById("articlesAdminTableBody");
+    if (!body) return;
+    body.innerHTML = articlesData.length
+      ? articlesData
+          .map((article) => {
+            const options = Object.keys(article.options || {});
+            return `<tr>
+        <td><strong>${article.nom}</strong><br><small>${article.description || ""}</small></td>
+        <td>${article.type}</td><td>${formaterMonnaie(article.prix)}</td><td>${article.stock}</td>
+        <td>${options.length ? options.join(", ") : "-"}</td>
+        <td><span class="status-pill ${article.actif ? "active" : "inactive"}">${article.actif ? "Actif" : "Désactivé"}</span></td>
+        <td><div class="table-actions">
+          <button type="button" onclick="ouvrirFormulaireArticle('${article.id}')">Modifier</button>
+          <button type="button" onclick="changerStatutArticleDepuisPage('${article.id}', ${!article.actif})">${article.actif ? "Désactiver" : "Activer"}</button>
+          <button type="button" onclick="supprimerArticleDepuisPage('${article.id}')">Supprimer</button>
+        </div></td>
+      </tr>`;
+          })
+          .join("")
+      : `<tr><td colspan="7">Aucun article.</td></tr>`;
+  }
+
+  function parserOptionsArticle(value) {
+    const options = {};
+    String(value || "")
+      .split("\n")
+      .forEach((line) => {
+        const separator = line.indexOf(":");
+        if (separator < 1) return;
+        const category = line.slice(0, separator).trim();
+        const choices = line
+          .slice(separator + 1)
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        if (category && choices.length) options[category] = choices;
+      });
+    return options;
+  }
+
+  function formaterOptionsArticle(options) {
+    return Object.entries(options || {})
+      .map(([category, choices]) => `${category} : ${choices.join(", ")}`)
+      .join("\n");
+  }
+
+  function ouvrirFormulaireArticle(id) {
+    const article = articlesData.find((item) => String(item.id) === String(id));
+    document.getElementById("articleModalTitle").textContent = article
+      ? "Modifier l’article"
+      : "Nouvel article";
+    document.getElementById("articleIdInput").value = article ? article.id : "";
+    document.getElementById("articleNomInput").value = article
+      ? article.nom
+      : "";
+    document.getElementById("articleTypeInput").value = article
+      ? article.type
+      : "Menu";
+    document.getElementById("articlePrixInput").value = article
+      ? article.prix
+      : "";
+    document.getElementById("articleStockInput").value = article
+      ? article.stock
+      : 0;
+    document.getElementById("articleSeuilInput").value = article
+      ? article.seuilAlerte
+      : 0;
+    document.getElementById("articleActifInput").value =
+      article && !article.actif ? "false" : "true";
+    document.getElementById("articleDescriptionInput").value = article
+      ? article.description
+      : "";
+    document.getElementById("articleOptionsInput").value = article
+      ? formaterOptionsArticle(article.options)
+      : "";
+    document.getElementById("articleModal").classList.remove("hidden");
+  }
+
+  function fermerFormulaireArticle() {
+    document.getElementById("articleModal").classList.add("hidden");
+  }
+
+  function rafraichirArticles(onSuccess, avecChargement = false) {
+    google.script.run
+      .withSuccessHandler((data) => {
+        const parsed = JSON.parse(data);
+        articlesData = parsed.articles || [];
+        afficherArticles();
+        remplirTableauArticles();
+        if (avecChargement) masquerChargementAction();
+        if (onSuccess) onSuccess();
+      })
+      .withFailureHandler((error) => {
+        if (avecChargement) masquerChargementAction();
+        afficherStatus(error.message || "Erreur articles", "error");
+      })
+      .chargerDonneesJSON();
+  }
+
+  function enregistrerArticleDepuisPage() {
+    const article = {
+      id: document.getElementById("articleIdInput").value || null,
+      nom: document.getElementById("articleNomInput").value,
+      type: document.getElementById("articleTypeInput").value,
+      prix: document.getElementById("articlePrixInput").value,
+      stock: document.getElementById("articleStockInput").value,
+      seuilAlerte: document.getElementById("articleSeuilInput").value,
+      actif: document.getElementById("articleActifInput").value === "true",
+      description: document.getElementById("articleDescriptionInput").value,
+      options: parserOptionsArticle(
+        document.getElementById("articleOptionsInput").value,
+      ),
+    };
+    afficherChargementAction("Enregistrement de l’article...");
+    google.script.run
+      .withSuccessHandler(() => {
+        fermerFormulaireArticle();
+        rafraichirArticles(null, true);
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur d’enregistrement", "error");
+      })
+      .sauvegarderArticle(article, vendeurActif);
+  }
+
+  function changerStatutArticleDepuisPage(id, actif) {
+    afficherChargementAction(
+      actif ? "Activation de l’article..." : "Désactivation de l’article...",
+    );
+    google.script.run
+      .withSuccessHandler(() => {
+        rafraichirArticles(null, true);
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur de statut", "error");
+      })
+      .changerStatutArticle(id, actif, vendeurActif);
+  }
+
+  function supprimerArticleDepuisPage(id) {
+    if (!confirm("Supprimer définitivement cet article ?")) return;
+    afficherChargementAction("Suppression de l’article...");
+    google.script.run
+      .withSuccessHandler(() => {
+        rafraichirArticles(null, true);
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur de suppression", "error");
+      })
+      .supprimerArticle(id, vendeurActif);
+  }
+
+  // --- GESTION PIN ---
+  function afficherVendeursPin() {
+    const pinScreen = document.getElementById("pinScreen");
+    if (!pinScreen) return;
+    if (vendeurActif !== null) {
+      pinScreen.style.display = "none";
+      pinScreen.style.opacity = "1";
+      return;
+    }
+    pinScreen.style.display = "flex";
+    pinScreen.style.opacity = "1";
+  }
+
+  document.addEventListener("keydown", function (event) {
+    const pinScreen = document.getElementById("pinScreen");
+    if (pinScreen && pinScreen.style.display !== "none") {
+      if (event.key >= "0" && event.key <= "9") {
+        ajouterChiffre(event.key);
+      } else if (event.key === "Backspace") {
+        effacerPin();
+      }
+    }
+  });
+
+  function ajouterChiffre(chiffre) {
+    if (codeSaisiPin.length < 4) {
+      codeSaisiPin += chiffre;
+      document.getElementById("pinInput").value = "•".repeat(
+        codeSaisiPin.length,
+      );
+      if (codeSaisiPin.length === 4) {
+        verifierPinInstantane();
+      }
+    }
+  }
+
+  function effacerPin() {
+    codeSaisiPin = codeSaisiPin.slice(0, -1);
+    document.getElementById("pinInput").value = "•".repeat(codeSaisiPin.length);
+  }
+
+  function viderChampsPin() {
+    codeSaisiPin = "";
+    document.getElementById("pinInput").value = "";
+    const pinError = document.getElementById("pinError");
+    if (pinError) pinError.style.display = "none";
+  }
+
+  function verifierPinInstantane() {
+    const pinSaisi = codeSaisiPin;
+    afficherChargementAction("Vérification du vendeur...");
+    const pinError = document.getElementById("pinError");
+    if (pinError) {
+      pinError.textContent = "Vérification...";
+      pinError.style.color = "#fbbf24";
+      pinError.style.display = "block";
+    }
+    google.script.run
+      .withSuccessHandler(function (result) {
+        masquerChargementAction();
+        if (result && result.ok && result.vendeur) {
+          vendeurActif = result.vendeur.id;
+          vendeurNomActif = result.vendeur.nom || "";
+          gradeVendeurActif = result.vendeur.role || "ADMIN";
+          permissionsVendeur = result.vendeur.permissions || {};
+          appliquerPermissions();
+          if (permissionsVendeur.permissions === true)
+            chargerGestionPermissions();
+          mettreAJourHeaderVendeur();
+          if (pinError) pinError.style.display = "none";
+          const pinScreen = document.getElementById("pinScreen");
+          pinScreen.style.opacity = "0";
+          setTimeout(() => {
+            pinScreen.style.display = "none";
+          }, 300);
+          return;
+        }
+        if (pinError) {
+          pinError.textContent =
+            result && result.message ? result.message : "Code PIN incorrect.";
+          pinError.style.color = "#f87171";
+          pinError.style.display = "block";
+        }
+        document.getElementById("pinInput").value = "";
+        codeSaisiPin = "";
+      })
+      .withFailureHandler(function (error) {
+        masquerChargementAction();
+        if (pinError) {
+          pinError.textContent =
+            error && error.message
+              ? error.message
+              : "Erreur lors de la vérification du PIN.";
+          pinError.style.color = "#f87171";
+          pinError.style.display = "block";
+        }
+        document.getElementById("pinInput").value = "";
+        codeSaisiPin = "";
+      })
+      .authentifierVendeurPIN(pinSaisi);
+  }
+
+  function deconnecterVendeur() {
+    vendeurActif = null;
+    vendeurNomActif = "";
+    codeSaisiPin = "";
+    panier = [];
+    contratActif = null;
+    if (document.getElementById("panierList")) {
+      document.getElementById("panierList").innerHTML =
+        '<div style="text-align: center; padding: 30px 0; color: #4b5563; font-size: 13px;">La commande est vide</div>';
+    }
+    document.getElementById("headerVendeur").textContent = "Non connecté";
+    mettreAJourHeaderVendeur();
+    document.getElementById("clientSelect").value = "";
+    document.getElementById("infosContrat")?.classList.add("hidden");
+    document.getElementById("totauxDiv").classList.add("hidden");
+    document.getElementById("btnValider").disabled = true;
+    document.getElementById("pinInput").value = "";
+    const pinScreen = document.getElementById("pinScreen");
+    if (pinScreen) {
+      pinScreen.style.display = "flex";
+      pinScreen.style.opacity = "1";
+    }
+  }
+
+  // --- CAISSE & ARTICLES ---
+  function afficherArticles() {
+    const container = document.getElementById("articlesGrid");
+    if (!container) return;
+    container.innerHTML = "";
+    const articlesValides = articlesData.filter(
+      (article) => article && article.nom && article.actif !== false,
+    );
+    if (!articlesValides.length) {
+      container.innerHTML =
+        '<div style="grid-column:1/-1; padding:20px; color:#f87171;">Aucun article chargé. Vérifie l’onglet Articles du Google Sheets.</div>';
+      return;
+    }
+    articlesValides.forEach((article) => {
+      const prix = Number(article.prix) || 0;
+      const stock = Number(article.stock) || 0;
+      const card = document.createElement("div");
+      card.className = "article-card";
+      card.onclick = () => selectionnerArticle(article);
+      card.innerHTML = `
+        <div class="article-nom">${article.nom}</div>
+        <div class="article-bottom">
+          <span class="article-prix">${formaterMonnaie(prix)}</span>
+          <span class="article-stock">Qté: ${stock}</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function selectionnerArticle(article) {
+    if (article.stock <= 0) {
+      afficherStatus("Stock épuisé", "error");
+      return;
+    }
+    if (Object.keys(article.options || {}).length) {
+      afficherVariants(article);
+    } else {
+      ajouterAuPanier(article, {});
+    }
+  }
+
+  function afficherVariants(article) {
+    articleEnCours = article;
+    const content = document.getElementById("variantsContent");
+    content.innerHTML = Object.entries(article.options || {})
+      .map(
+        ([category, choices], categoryIndex) => `
+      <div style="margin-bottom:15px"><label style="display:block;font-size:11px;color:#9ca3af;margin-bottom:5px">${category}</label>
+        <div class="grid-2">${choices.map((choice, choiceIndex) => `<button class="btn-select variant-choice ${choiceIndex === 0 ? "active" : ""}" data-category="${category}" data-choice="${choice}">${choice}</button>`).join("")}</div>
+      </div>`,
+      )
+      .join("");
+    content.querySelectorAll(".variant-choice").forEach(
+      (button) =>
+        (button.onclick = () => {
+          content
+            .querySelectorAll(`[data-category="${button.dataset.category}"]`)
+            .forEach((item) => item.classList.remove("active"));
+          button.classList.add("active");
+        }),
+    );
+
+    document.getElementById("variantsContainer").classList.remove("hidden");
+  }
+
+  function fermerVariants() {
+    document.getElementById("variantsContainer").classList.add("hidden");
+    articleEnCours = null;
+  }
+
+  function ajouterArticleAvecVariants() {
+    if (!articleEnCours) return;
+    const variants = {};
+    document.querySelectorAll(".variant-choice.active").forEach((button) => {
+      variants[button.dataset.category] = button.dataset.choice;
+    });
+    ajouterAuPanier(articleEnCours, variants);
+    fermerVariants();
+  }
+
+  function ajouterAuPanier(article, variants = {}) {
+    const varStr =
+      Object.keys(variants).length > 0
+        ? ` (${Object.entries(variants)
+            .map(([category, choice]) => `${category}: ${choice}`)
+            .join(", ")})`
+        : "";
+    const nomComplet = article.nom + varStr;
+    const existing = panier.find(
+      (item) =>
+        item.article.id === article.id && item.nomComplet === nomComplet,
+    );
+
+    if (existing) {
+      if (existing.quantity + 1 > article.stock)
+        return afficherStatus("Stock insuffisant", "error");
+      existing.quantity += 1;
+    } else {
+      panier.push({ article, nomComplet, prix: article.prix, quantity: 1 });
+    }
+    mettreAJourPanier();
+  }
+
+  function mettreAJourPanier() {
+    const container = document.getElementById("panierList");
+    container.innerHTML = "";
+
+    if (panier.length === 0) {
+      container.innerHTML =
+        '<div style="text-align: center; padding: 30px 0; color: #4b5563; font-size: 13px;">La commande est vide</div>';
+      document.getElementById("totauxDiv").classList.add("hidden");
+      document.getElementById("btnValider").disabled = true;
+      actualiserBadgePanierMobile();
+      return;
+    }
+
+    panier.forEach((item, index) => {
+      const subtotal = item.prix * item.quantity;
+      const div = document.createElement("div");
+      div.className = "panier-item";
+      div.innerHTML = `
+        <div class="panier-nom">${item.nomComplet}</div>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="changerQuantite(${index}, -1)">−</button>
+          <div class="qty-val">${item.quantity}</div>
+          <button class="qty-btn" onclick="changerQuantite(${index}, 1)">+</button>
+        </div>
+        <div class="panier-prix">${subtotal.toFixed(2)} ${deviseActuelle}</div>
+      `;
+      container.appendChild(div);
+    });
+
+    document.getElementById("totauxDiv").classList.remove("hidden");
+    document.getElementById("btnValider").disabled = false;
+    calculerTotaux();
+    actualiserBadgePanierMobile();
+  }
+
+  function actualiserBadgePanierMobile() {
+    const badge = document.getElementById("caissePanierBadge");
+    if (!badge) return;
+    const total = panier.reduce((sum, item) => sum + item.quantity, 0);
+    badge.textContent = total;
+    badge.classList.toggle("hidden", total === 0);
+  }
+
+  function changerQuantite(index, delta) {
+    const item = panier[index];
+    const newQty = panier[index].quantity + delta;
+    if (newQty > 0) panier[index].quantity = newQty;
+    else {
+      panier.splice(index, 1);
+      if (item.recompense) recompenseActive = null;
+    }
+    mettreAJourPanier();
+  }
+
+  function viderPanier() {
+    panier = [];
+    recompenseActive = null;
+    fermerVariants();
+    mettreAJourPanier();
+    calculerTotaux();
+    document.querySelectorAll("[data-type]").forEach((btn) => {
+      btn.classList.toggle(
+        "active",
+        btn.getAttribute("data-type") === paiementActif,
+      );
+    });
+    document
+      .getElementById("contratPaymentPanel")
+      ?.classList.toggle("hidden", paiementActif !== "Contrat");
+    document
+      .getElementById("fidelitePaymentPanel")
+      ?.classList.toggle("hidden", paiementActif !== "Fidelite");
+  }
+
+  function calculerTotaux() {
+    let sousTotal = 0;
+    panier.forEach((item) => {
+      sousTotal += item.prix * item.quantity;
+    });
+
+    let reduction =
+      contratActif && contratActif.type === "HEBDOMADAIRE_FIXE"
+        ? sousTotal * (contratActif.reduction / 100)
+        : 0;
+    const total = sousTotal - reduction;
+
+    document.getElementById("sousTotal").textContent =
+      formaterMonnaie(sousTotal);
+    if (reduction > 0) {
+      document.getElementById("ligneReduction").classList.remove("hidden");
+      document.getElementById("montantReduction").textContent =
+        "-" + formaterMonnaie(reduction);
+    } else {
+      document.getElementById("ligneReduction").classList.add("hidden");
+    }
+    document.getElementById("total").textContent = formaterMonnaie(total);
+    const contractInfo = document.getElementById("contratCaisseInfo");
+    if (contractInfo && contratActif) {
+      const companyAmount = total * (Number(contratActif.companyPercent) / 100);
+      contractInfo.innerHTML = `<strong>Contrat : ${contratActif.companyName}</strong><br>Pris en charge par le contrat : ${formaterMonnaie(companyAmount)}<br>Total restant : ${formaterMonnaie(total - companyAmount)}`;
+      contractInfo.classList.remove("hidden");
+    } else if (contractInfo) contractInfo.classList.add("hidden");
+
+    const loyaltyLine = document.getElementById("ligneFidelite");
+    if (loyaltyLine) {
+      loyaltyLine.classList.toggle("hidden", !recompenseActive);
+      if (recompenseActive)
+        document.getElementById("montantFidelite").textContent =
+          `(${recompenseActive.points} points)`;
+    }
+    actualiserCompteClient();
+  }
+
+  function initialiserZonePaiement() {
+    const zone = document.getElementById("paymentControls");
+    if (!zone) return;
+    zone.innerHTML = `
+      <h2>Paiement</h2>
+      <div class="grid-3">
+        <button class="btn-select active" type="button" data-type="Facture" onclick="selectionnerPaiement('Facture')">Facture CB/CASH</button>
+        <button class="btn-select" type="button" data-type="Contrat" onclick="selectionnerPaiement('Contrat')">Contrat entreprise</button>
+        <button class="btn-select" type="button" data-type="Fidelite" onclick="selectionnerPaiement('Fidelite')">Compte fidélité</button>
+      </div>
+      <div id="contratPaymentPanel" class="hidden" style="margin-top:10px; padding:10px; background:#232736; border:1px solid #3f4455; border-radius:4px">
+        <button class="btn-select" type="button" onclick="ouvrirSelectionContrat()" style="width:100%">Choisir un contrat</button>
+        <div id="contratCaisseInfo" class="hidden" style="margin-top:8px; padding:8px; background:rgba(52,211,153,.1); border:1px solid #34d399; border-radius:4px; color:#34d399; font-size:12px"></div>
+        <div class="form-group" style="margin:8px 0 0"><label>Employé</label><div style="display:flex;gap:8px"><select id="employeInput" class="form-control" style="flex:1"><option value="">-- Sélectionner un employé --</option></select><button class="btn-action btn-pay" type="button" onclick="creerEmployeDepuisCaisse()">+ Créer</button></div></div>
+      </div>
+      <div id="fidelitePaymentPanel" class="hidden" style="margin-top:10px; padding:10px; background:#232736; border:1px solid #3f4455; border-radius:4px">
+        <select id="clientSelect" style="display:none" onchange="actualiserCompteClient()"></select>
+        <div id="fideliteClientInfo" class="hidden" style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+          <span><strong id="fideliteClientName"></strong><br><span id="fideliteClientPoints"></span><br><span id="fidelitePointsGagnes" style="color:#34d399"></span></span>
+          <button id="usePointsButton" class="btn-action btn-pay" type="button" onclick="ouvrirSelectionRecompense()">Utiliser des points</button>
+        </div>
+        <button id="fideliteChooseButton" class="btn-select" type="button" onclick="ouvrirSelectionClientFidelite()" style="width:100%;margin-top:14px">Sélectionner un compte client</button>
+      </div>`;
+    remplirSelectClients();
+    selectionnerPaiement(paiementActif, false);
+  }
+
+  function selectionnerPaiement(type, ouvrirModal = true) {
+    paiementActif = type;
+    if (type !== "Fidelite") recompenseActive = null;
+    if (type !== "Contrat") contratActif = null;
+    document.querySelectorAll("[data-type]").forEach((btn) => {
+      btn.classList.toggle("active", btn.getAttribute("data-type") === type);
+    });
+    document
+      .getElementById("contratPaymentPanel")
+      ?.classList.toggle("hidden", type !== "Contrat");
+    document
+      .getElementById("fidelitePaymentPanel")
+      ?.classList.toggle("hidden", type !== "Fidelite");
+    if (ouvrirModal && type === "Contrat") ouvrirSelectionContrat();
+    if (ouvrirModal && type === "Fidelite") ouvrirSelectionClientFidelite();
+    calculerTotaux();
+  }
+
+  function normaliserTexte(valeur) {
+    return (valeur || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function afficherTableauClients() {
+    const body = document.getElementById("clientsTableBody");
+    if (!body) return;
+    const filtre = normaliserTexte(
+      document.getElementById("clientsSearchInput")?.value,
+    );
+    const clients = clientsData.filter((client) => {
+      const texte = normaliserTexte(`${client.nom} ${client.contact || ""}`);
+      return !filtre || texte.includes(filtre);
+    });
+    body.innerHTML = clients.length
+      ? clients
+          .map(
+            (client) =>
+              `<tr><td>${client.nom}</td><td>${client.type}</td><td>${client.contact || "-"}</td><td>${client.points || 0}</td><td>${client.statut || "Actif"}</td><td><button class="btn-select" type="button" onclick="ouvrirFicheClient('${client.id}')">Consulter</button></td></tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="6" style="color:#9ca3af">Aucun client trouvé.</td></tr>';
+  }
+
+  function ouvrirFicheClient(id = "") {
+    const client = clientsData.find((item) => String(item.id) === String(id));
+    document.getElementById("clientGestionId").value = client ? client.id : "";
+    document.getElementById("clientGestionTitle").textContent = client
+      ? "Fiche client"
+      : "Nouveau client";
+    document.getElementById("clientGestionNom").value = client?.nom || "";
+    document.getElementById("clientGestionType").value =
+      client?.type || "Particulier";
+    document.getElementById("clientGestionContact").value =
+      client?.contact || "";
+    document.getElementById("clientGestionAdresse").value =
+      client?.adresse || "";
+    document.getElementById("clientGestionPoints").value = client?.points || 0;
+    document.getElementById("clientHistoriqueContainer").innerHTML = client
+      ? '<div style="color:#9ca3af">Chargement des commandes...</div>'
+      : '<div style="color:#9ca3af">Enregistrez le client pour afficher son historique.</div>';
+    document.getElementById("clientGestionModal").classList.remove("hidden");
+    if (client) chargerHistoriqueClient(client.id);
+  }
+
+  function fermerFicheClient() {
+    document.getElementById("clientGestionModal")?.classList.add("hidden");
+  }
+
+  function chargerHistoriqueClient(clientId) {
+    const container = document.getElementById("clientHistoriqueContainer");
+    if (!clientId || String(clientId).startsWith("temp-")) {
+      if (container)
+        container.innerHTML =
+          '<div style="color:#9ca3af">Enregistrez le client pour afficher son historique.</div>';
+      return;
+    }
+    const requestId = ++historiqueClientRequestId;
+    const timeout = setTimeout(() => {
+      if (requestId !== historiqueClientRequestId || !container) return;
+      container.innerHTML =
+        '<div style="color:#f87171">Le chargement des commandes prend trop de temps. Réessayez.</div>';
+    }, 15000);
+    google.script.run
+      .withSuccessHandler((commandes) => {
+        clearTimeout(timeout);
+        if (requestId !== historiqueClientRequestId || !container) return;
+        const historique = Array.isArray(commandes) ? commandes : [];
+        if (!historique.length) {
+          container.innerHTML =
+            '<div style="color:#9ca3af">Aucune commande enregistrée.</div>';
+          return;
+        }
+        container.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Commande</th><th>Paiement</th><th>Total</th></tr></thead><tbody>${historique
+          .slice()
+          .reverse()
+          .map(
+            (commande) =>
+              `<tr><td>${commande?.date || "-"} ${commande?.heure || ""}</td><td>${commande?.articles || "-"}</td><td>${commande?.paiement || "-"}</td><td>${formaterMonnaie(Number(commande?.total) || 0)}</td></tr>`,
+          )
+          .join("")}</tbody></table>`;
+      })
+      .withFailureHandler((error) => {
+        clearTimeout(timeout);
+        if (requestId !== historiqueClientRequestId) return;
+        if (container)
+          container.innerHTML =
+            '<div style="color:#f87171">Erreur lors du chargement de l’historique.</div>';
+        afficherStatus(error.message || "Erreur historique.", "error");
+      })
+      .obtenirHistoriqueClient(clientId, vendeurActif);
+  }
+
+  function enregistrerFicheClient() {
+    const client = {
+      id: document.getElementById("clientGestionId").value,
+      nom: document.getElementById("clientGestionNom").value.trim(),
+      type: document.getElementById("clientGestionType").value,
+      contact: document.getElementById("clientGestionContact").value.trim(),
+      adresse: document.getElementById("clientGestionAdresse").value.trim(),
+      points: Number(document.getElementById("clientGestionPoints").value) || 0,
+      statut: "Actif",
+    };
+    if (!client.nom) return afficherStatus("Le nom est obligatoire.", "error");
+    afficherChargementAction("Enregistrement du client...");
+    google.script.run
+      .withSuccessHandler((saved) => {
+        masquerChargementAction();
+        const index = clientsData.findIndex(
+          (item) => String(item.id) === String(saved.id),
+        );
+        if (index >= 0) clientsData[index] = saved;
+        else clientsData.push(saved);
+        remplirSelectClients();
+        afficherTableauClients();
+        document.getElementById("clientGestionId").value = saved.id;
+        afficherStatus("Client enregistré.", "success");
+        chargerHistoriqueClient(saved.id);
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur client.", "error");
+      })
+      .sauvegarderClient(client, vendeurActif);
+  }
+
+  function enregistrerPointsClient() {
+    const clientId = document.getElementById("clientGestionId").value;
+    const client = clientsData.find(
+      (item) => String(item.id) === String(clientId),
+    );
+    if (!client)
+      return afficherStatus("Enregistrez d’abord le client.", "error");
+    const variation =
+      (Number(document.getElementById("clientGestionPoints").value) || 0) -
+      (client.points || 0);
+    if (!variation) return;
+    afficherChargementAction("Mise à jour des points...");
+    google.script.run
+      .withSuccessHandler((saved) => {
+        masquerChargementAction();
+        Object.assign(client, saved);
+        document.getElementById("clientGestionPoints").value = saved.points;
+        remplirSelectClients();
+        afficherTableauClients();
+        afficherStatus("Points mis à jour.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur points.", "error");
+      })
+      .modifierPointsClient(clientId, variation, vendeurActif);
+  }
+
+  function archiverFicheClient() {
+    const clientId = document.getElementById("clientGestionId").value;
+    if (!clientId) return;
+    afficherChargementAction("Archivage du client...");
+    google.script.run
+      .withSuccessHandler((saved) => {
+        masquerChargementAction();
+        const client = clientsData.find(
+          (item) => String(item.id) === String(clientId),
+        );
+        if (client) Object.assign(client, saved);
+        afficherTableauClients();
+        fermerFicheClient();
+        afficherStatus("Client archivé.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur archivage.", "error");
+      })
+      .archiverClient(clientId, vendeurActif);
+  }
+
+  function afficherNomClient(client, withPoints = false) {
+    const morceaux = String(client?.nom || "Client")
+      .trim()
+      .split(/\s+/);
+    const nom = morceaux.pop()?.toUpperCase() || "CLIENT";
+    const prenom = morceaux.join(" ");
+    const telephone = client?.contact || "Sans téléphone";
+    const points = Number(client?.points || 0);
+    const suffix = withPoints ? ` (${points} pts)` : "";
+    return `${prenom ? prenom + " " : ""}${nom}${suffix} - ${telephone}`;
+  }
+
+  function rafraichirClientsDepuisServeur() {
+    google.script.run
+      .withSuccessHandler((data) => {
+        try {
+          const parsed = JSON.parse(data);
+          clientsData = parsed.clients || clientsData;
+          vendeursData = parsed.vendeurs || vendeursData;
+          if (document.getElementById("clientSelect")) remplirSelectClients();
+          if (document.getElementById("clientsTableBody"))
+            afficherTableauClients();
+        } catch (error) {
+          console.error("Erreur rafraichissement clients", error);
+        }
+      })
+      .withFailureHandler((error) =>
+        console.error("Erreur chargement clients", error),
+      )
+      .chargerDonneesJSON();
+  }
+
+  function remplirSelectClients() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+    const particuliers = clientsData.filter((c) => c.type === "Particulier");
+    const entreprises = clientsData.filter((c) => c.type === "Entreprise");
+
+    let html = '<option value="">-- Sélectionner un compte --</option>';
+
+    if (particuliers.length) {
+      html += '<optgroup label="Particuliers">';
+      particuliers.forEach((c) => {
+        html += `<option value="${c.id}">${afficherNomClient(c)}</option>`;
+      });
+      html += "</optgroup>";
+    }
+
+    if (entreprises.length) {
+      html += '<optgroup label="Entreprises">';
+      entreprises.forEach((c) => {
+        html += `<option value="${c.id}">${c.nom}</option>`;
+      });
+      html += "</optgroup>";
+    }
+
+    select.innerHTML = html;
+  }
+
+  function selectionnerCompteClient(clientId) {
+    const select = document.getElementById("clientSelect");
+    const id = String(clientId || "");
+    if (!select || !id || !select.querySelector(`option[value="${id}"]`))
+      return false;
+    select.value = id;
+    factureCompteVerifie = true;
+    actualiserCompteClient();
+    return true;
+  }
+
+  function actualiserCompteClient() {
+    const clientId = document.getElementById("clientSelect")?.value;
+    const client = clientsData.find((c) => String(c.id) === String(clientId));
+    const usePointsButton = document.getElementById("usePointsButton");
+    const fideliteInfo = document.getElementById("fideliteClientInfo");
+    const fideliteName = document.getElementById("fideliteClientName");
+    const fidelitePoints = document.getElementById("fideliteClientPoints");
+    const fidelitePointsGagnes = document.getElementById(
+      "fidelitePointsGagnes",
+    );
+    if (!clientId || !client) {
+      if (fideliteInfo) fideliteInfo.classList.add("hidden");
+      if (usePointsButton) usePointsButton.disabled = true;
+      return;
+    }
+    if (fideliteName)
+      fideliteName.textContent = afficherNomClient(client, true);
+    if (fidelitePoints)
+      fidelitePoints.textContent = `${client.points || 0} points`;
+    if (fidelitePointsGagnes)
+      fidelitePointsGagnes.textContent =
+        client.type === "Particulier"
+          ? `Points acquis avec cette commande : +${calculerPointsFidelite()} pts`
+          : "";
+    if (fideliteInfo) fideliteInfo.classList.remove("hidden");
+    if (usePointsButton)
+      usePointsButton.disabled =
+        client.type !== "Particulier" ||
+        !recompensesData.some(
+          (reward) => reward.points <= (client.points || 0),
+        );
+  }
+
+  function calculerPointsFidelite() {
+    const sousTotal = panier.reduce(
+      (total, item) => total + item.prix * item.quantity,
+      0,
+    );
+    const reduction =
+      contratActif && contratActif.type === "HEBDOMADAIRE_FIXE"
+        ? sousTotal * (contratActif.reduction / 100)
+        : 0;
+    return Math.max(0, Math.floor(sousTotal - reduction));
+  }
+
+  function ouvrirModalCompteClient(
+    typeInitial = "Particulier",
+    etape = "create",
+  ) {
+    const modal = document.getElementById("clientLoyaltyModal");
+    if (!modal) return;
+    const type = document.getElementById("clientCreateType");
+    if (type) type.value = typeInitial;
+    const compteTypeSelect = document.getElementById("compteTypeSelect");
+    if (compteTypeSelect) compteTypeSelect.value = typeInitial;
+    document.getElementById("clientLoyaltyChoice").classList.remove("hidden");
+    document.getElementById("clientLoyaltySearch").classList.add("hidden");
+    document.getElementById("clientLoyaltyCreate").classList.add("hidden");
+    document.getElementById("clientSearchInput").value = "";
+    document.getElementById("clientSearchResults").innerHTML = "";
+    document.getElementById("clientPrenomInput").value = "";
+    document.getElementById("clientNomInput").value = "";
+    document.getElementById("clientTelephoneInput").value = "";
+    document.getElementById("clientMatriculeInput").value = "";
+    toggleTypeCompteModal(typeInitial);
+    montrerEtapeCompteClient(etape);
+    modal.classList.remove("hidden");
+  }
+
+  function ouvrirChoixClientFacture() {
+    ouvrirModalCompteClient("Particulier", "choice");
+  }
+
+  function ouvrirSelectionClientFidelite() {
+    const modal = document.getElementById("clientSelectionFideliteModal");
+    const input = document.getElementById("clientFideliteSearchInput");
+    if (!modal || !input) return;
+    input.value = "";
+    afficherClientsFidelite();
+    modal.classList.remove("hidden");
+  }
+
+  function fermerSelectionClientFidelite() {
+    document
+      .getElementById("clientSelectionFideliteModal")
+      ?.classList.add("hidden");
+  }
+
+  function afficherClientsFidelite() {
+    const input = document.getElementById("clientFideliteSearchInput");
+    const resultsBox = document.getElementById("clientFideliteSearchResults");
+    if (!input || !resultsBox) return;
+    const filtre = normaliserTexte(input.value);
+    const results = clientsData
+      .filter((client) => client.type === "Particulier")
+      .filter((client) => {
+        const texte = normaliserTexte(`${client.nom} ${client.contact || ""}`);
+        return !filtre || texte.includes(filtre);
+      });
+    resultsBox.innerHTML = results.length
+      ? results
+          .map(
+            (client) =>
+              `<button type="button" class="btn-select" data-client-id="${client.id}" style="width:100%;margin-bottom:8px;text-align:left">${afficherNomClient(client, true)}</button>`,
+          )
+          .join("")
+      : '<div style="padding:10px;color:#9ca3af">Aucun compte trouvé.</div>';
+    resultsBox.querySelectorAll("[data-client-id]").forEach((button) => {
+      button.onclick = () => {
+        document.getElementById("clientSelect").value = button.dataset.clientId;
+        factureCompteVerifie = true;
+        selectionnerPaiement("Fidelite", false);
+        actualiserCompteClient();
+        fermerSelectionClientFidelite();
+      };
+    });
+  }
+
+  function fermerModalCompteClient() {
+    const modal = document.getElementById("clientLoyaltyModal");
+    if (modal) modal.classList.add("hidden");
+  }
+
+  function refuserCompteFidelite() {
+    const clientSelect = document.getElementById("clientSelect");
+    if (clientSelect) clientSelect.value = "";
+    factureCompteVerifie = true;
+    if (paiementActif === "Fidelite") {
+      paiementActif = "Facture";
+      selectionnerPaiement("Facture", false);
+    }
+    if (panier.length) {
+      validerCommande();
+    }
+    fermerModalCompteClient();
+  }
+
+  function toggleTypeCompteModal(typeCompte) {
+    const particulier = document.getElementById("clientCreateParticulier");
+    const entreprise = document.getElementById("clientCreateEntreprise");
+    const value = typeCompte || "Particulier";
+    if (particulier)
+      particulier.classList.toggle("hidden", value !== "Particulier");
+    if (entreprise)
+      entreprise.classList.toggle("hidden", value !== "Entreprise");
+    const globalSelect = document.getElementById("compteTypeSelect");
+    if (globalSelect) globalSelect.value = value;
+  }
+
+  function montrerEtapeCompteClient(etape) {
+    document
+      .getElementById("clientLoyaltyChoice")
+      .classList.toggle("hidden", etape !== "choice");
+    document
+      .getElementById("clientLoyaltySearch")
+      .classList.toggle("hidden", etape !== "search");
+    document
+      .getElementById("clientLoyaltyCreate")
+      .classList.toggle("hidden", etape !== "create");
+    if (etape === "search") {
+      document.getElementById("clientSearchInput").value = "";
+      rechercherCompteClientLoyalty();
+    }
+    if (etape === "create") {
+      const typeCompte =
+        document.getElementById("clientCreateType")?.value || "Particulier";
+      toggleTypeCompteModal(typeCompte);
+    }
+  }
+
+  function rechercherCompteClientLoyalty() {
+    const input = document.getElementById("clientSearchInput");
+    const resultsBox = document.getElementById("clientSearchResults");
+    const filtre = normaliserTexte(input.value);
+
+    const results = clientsData
+      .filter((c) => c.type === "Particulier")
+      .filter((c) => {
+        if (!filtre) return true;
+        const nom = normaliserTexte(c.nom || "");
+        const contact = normaliserTexte(c.contact || "");
+        return nom.includes(filtre) || contact.includes(filtre);
+      });
+
+    if (!results.length) {
+      resultsBox.innerHTML =
+        '<div style="padding: 10px; color: #9ca3af; font-size: 12px;">Aucun compte trouvé.</div>';
+      return;
+    }
+
+    resultsBox.innerHTML = "";
+    results.forEach((client) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-select";
+      btn.style.width = "100%";
+      btn.style.marginBottom = "8px";
+      btn.textContent = afficherNomClient(client, true);
+      btn.onclick = () => {
+        document.getElementById("clientSelect").value = String(client.id);
+        actualiserCompteClient();
+        factureCompteVerifie = true;
+        selectionnerPaiement("Fidelite", false);
+        fermerModalCompteClient();
+      };
+      resultsBox.appendChild(btn);
+    });
+  }
+
+  function ouvrirSelectionRecompense() {
+    const clientId = document.getElementById("clientSelect")?.value;
+    const client = clientsData.find(
+      (item) => String(item.id) === String(clientId),
+    );
+    const list = document.getElementById("recompenseSelectionList");
+    if (!client || !list) return;
+    list.innerHTML = recompensesData.length
+      ? recompensesData
+          .map((reward) => {
+            const available = (client.points || 0) >= reward.points;
+            return `<button type="button" class="btn-select" ${available ? "" : "disabled"} data-reward-id="${reward.id}" style="width:100%;margin-bottom:8px;text-align:left;${available ? "" : "opacity:.45;filter:grayscale(1);cursor:not-allowed;"}"><strong>${reward.label}</strong><br><span>${reward.points} points</span></button>`;
+          })
+          .join("")
+      : '<div style="padding:10px;color:#9ca3af">Aucune récompense active.</div>';
+    list.querySelectorAll("[data-reward-id]").forEach((button) => {
+      button.onclick = () => selectionnerRecompense(button.dataset.rewardId);
+    });
+    document.getElementById("recompenseModal").classList.remove("hidden");
+  }
+
+  function fermerSelectionRecompense() {
+    document.getElementById("recompenseModal").classList.add("hidden");
+  }
+
+  function selectionnerRecompense(id) {
+    const reward = recompensesData.find(
+      (item) => String(item.id) === String(id),
+    );
+    const clientId = document.getElementById("clientSelect")?.value;
+    const client = clientsData.find(
+      (item) => String(item.id) === String(clientId),
+    );
+    const article =
+      reward &&
+      articlesData.find((item) => String(item.id) === String(reward.articleId));
+    if (
+      !reward ||
+      !client ||
+      !article ||
+      (client.points || 0) < reward.points
+    ) {
+      afficherStatus(
+        "Récompense indisponible ou article introuvable.",
+        "error",
+      );
+      return;
+    }
+    panier = panier.filter((item) => !item.recompense);
+    panier.push({
+      article,
+      nomComplet: `${article.nom} (Récompense)`,
+      prix: 0,
+      quantity: 1,
+      recompense: true,
+    });
+    recompenseActive = reward;
+    fermerSelectionRecompense();
+    mettreAJourPanier();
+  }
+
+  function creerCompteClientDepuisModal() {
+    const typeCompte =
+      document.getElementById("clientCreateType")?.value ||
+      document.getElementById("compteTypeSelect")?.value ||
+      "Particulier";
+    const prenom =
+      document.getElementById("clientPrenomInput")?.value?.trim() || "";
+    const nom = document.getElementById("clientNomInput")?.value?.trim() || "";
+    const telephone =
+      document.getElementById("clientTelephoneInput")?.value?.trim() || "";
+    const matricule =
+      document.getElementById("clientMatriculeInput")?.value?.trim() || "";
+
+    if (typeCompte === "Entreprise") {
+      const identifiant = (nom || matricule || "").trim();
+      if (!identifiant) {
+        afficherStatus(
+          "Le nom ou le matricule de l’entreprise est obligatoire.",
+          "error",
+        );
+        return;
+      }
+    }
+
+    const libelle =
+      typeCompte === "Entreprise"
+        ? (nom || matricule).trim()
+        : `${prenom} ${nom}`.trim();
+    if (!libelle) {
+      afficherStatus(
+        typeCompte === "Entreprise"
+          ? "Le nom ou matricule est requis."
+          : "Le prénom et le nom sont requis.",
+        "error",
+      );
+      return;
+    }
+
+    const contact = telephone || "";
+    const adresse = "";
+    const clientTemporaire = {
+      id: `temp-${Date.now()}`,
+      nom: libelle,
+      type: typeCompte,
+      points: 0,
+      offreActive: "",
+      contact,
+    };
+    clientsData.push(clientTemporaire);
+    remplirSelectClients();
+    selectionnerCompteClient(clientTemporaire.id);
+    afficherChargementAction("Création du compte client...");
+
+    google.script.run
+      .withSuccessHandler(function (client) {
+        masquerChargementAction();
+        const createdClient = client || {
+          id: null,
+          nom: libelle,
+          type: typeCompte,
+          points: 0,
+          offreActive: "",
+          contact: contact,
+        };
+
+        const clientIndex = clientsData.indexOf(clientTemporaire);
+        if (clientIndex >= 0)
+          clientsData[clientIndex] = {
+            id: createdClient.id,
+            nom: createdClient.nom,
+            type: createdClient.type,
+            points: createdClient.points || 0,
+            offreActive: createdClient.offreActive || "",
+            contact: createdClient.contact || contact,
+          };
+        remplirSelectClients();
+        const selectedId = String(createdClient.id || "");
+        selectionnerPaiement("Fidelite", false);
+        selectionnerCompteClient(selectedId);
+        fermerModalCompteClient();
+        afficherStatus(
+          typeCompte === "Entreprise"
+            ? "Compte entreprise créé avec succès"
+            : "Compte fidélité créé avec succès",
+          "success",
+        );
+      })
+      .withFailureHandler(function (err) {
+        masquerChargementAction();
+        const clientIndex = clientsData.indexOf(clientTemporaire);
+        if (clientIndex >= 0) clientsData.splice(clientIndex, 1);
+        remplirSelectClients();
+        console.error("Erreur création compte client", err);
+        afficherStatus("Erreur lors de la création du compte.", "error");
+      })
+      .creerCompteClient(libelle, contact, adresse, typeCompte, matricule);
+  }
+
+  function creerCompteClientDepuisInterface() {
+    const typeCompte =
+      document.getElementById("compteTypeSelect")?.value || "Particulier";
+    ouvrirModalCompteClient(typeCompte);
+  }
+
+  function utiliserOffreClient(clientId, rewardKey, rewardLabel, pointsRequis) {
+    afficherChargementAction("Activation de l’offre...");
+    google.script.run
+      .withSuccessHandler(function (res) {
+        masquerChargementAction();
+        if (res && res.ok) {
+          const clientIndex = clientsData.findIndex(
+            (c) => String(c.id) === String(clientId),
+          );
+          if (clientIndex >= 0) {
+            clientsData[clientIndex].points = res.pointsRestants || 0;
+          }
+          remplirSelectClients();
+          document.getElementById("clientSelect").value = String(clientId);
+          actualiserCompteClient();
+          afficherStatus(`${rewardLabel} activée`, "success");
+        } else {
+          afficherStatus(
+            res && res.message ? res.message : "Offre indisponible",
+            "error",
+          );
+        }
+      })
+      .withFailureHandler(function (error) {
+        masquerChargementAction();
+        afficherStatus(
+          error.message || "Erreur lors de l’activation.",
+          "error",
+        );
+      })
+      .utiliserOffreClient(clientId, rewardKey, vendeurActif);
+  }
+
+  function chargerContratClient() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+    const clientId = select.value;
+    if (!clientId) {
+      document.getElementById("infosContrat")?.classList.add("hidden");
+      contratActif = null;
+      calculerTotaux();
+      return;
+    }
+    afficherChargementAction("Chargement du contrat...");
+    google.script.run
+      .withSuccessHandler(function (res) {
+        masquerChargementAction();
+        try {
+          const parsed =
+            res && typeof res === "string"
+              ? JSON.parse(res)
+              : res || { id: null, reduction: 0, limite: null };
+          contratActif =
+            parsed && parsed.id !== undefined
+              ? parsed
+              : { id: null, reduction: 0, limite: null };
+          if (contratActif && contratActif.id) {
+            document.getElementById("reductionInfo").textContent =
+              `Contrat actif : ${contratActif.reduction}% de remise`;
+            document.getElementById("infosContrat")?.classList.remove("hidden");
+          } else {
+            document.getElementById("infosContrat")?.classList.add("hidden");
+          }
+          calculerTotaux();
+        } catch (e) {
+          console.error("Erreur lecture contrat client", e);
+          contratActif = null;
+          document.getElementById("infosContrat")?.classList.add("hidden");
+        }
+      })
+      .withFailureHandler(function (error) {
+        masquerChargementAction();
+        afficherStatus(
+          error.message || "Erreur lors du chargement du contrat.",
+          "error",
+        );
+      })
+      .obtenirContratJSON(clientId);
+  }
+
+  function ouvrirSelectionContrat() {
+    const modal = document.getElementById("contratModal");
+    const list = document.getElementById("contratSelectionList");
+    const actifs = contratsData.filter((c) => c.actif && c.status === "ACTIF");
+    list.innerHTML = actifs.length
+      ? actifs
+          .map(
+            (c) =>
+              `<button type="button" class="btn-select contrat-option" data-id="${c.id}" style="width:100%; margin-bottom:8px; text-align:left;"><strong>${c.companyName || "Entreprise #" + c.companyId}</strong><br><span>${c.type} · Entreprise ${c.companyPercent}% · Employé ${c.employeePercent}%</span></button>`,
+          )
+          .join("")
+      : '<div style="color:#9ca3af; padding:10px;">Aucun contrat actif.</div>';
+    list
+      .querySelectorAll(".contrat-option")
+      .forEach(
+        (button) =>
+          (button.onclick = () => selectionnerContrat(button.dataset.id)),
+      );
+    modal.classList.remove("hidden");
+  }
+
+  function fermerSelectionContrat() {
+    document.getElementById("contratModal").classList.add("hidden");
+  }
+
+  function selectionnerContrat(id, ouvrirChoixEmploye = true) {
+    contratActif = contratsData.find((c) => String(c.id) === String(id));
+    if (!contratActif) return;
+    const companySelect = document.getElementById("clientSelect");
+    if (companySelect) companySelect.value = String(contratActif.companyId);
+    const employeeSelect = document.getElementById("employeInput");
+    const employees = employesData.filter(
+      (e) =>
+        String(e.companyId) === String(contratActif.companyId) &&
+        e.status === "ACTIF",
+    );
+    employeeSelect.innerHTML =
+      '<option value="">-- Sélectionner un employé --</option>' +
+      employees
+        .map(
+          (e) => `<option value="${e.id}">${e.name} (${e.identifier})</option>`,
+        )
+        .join("");
+    fermerSelectionContrat();
+    calculerTotaux();
+    if (ouvrirChoixEmploye) ouvrirSelectionEmploye();
+  }
+
+  function ouvrirSelectionEmploye() {
+    const select = document.getElementById("employeSelectionInput");
+    if (!select) return;
+    select.innerHTML = document.getElementById("employeInput").innerHTML;
+    select.value = document.getElementById("employeInput").value;
+    document.getElementById("employeSelectionSearchInput").value = "";
+    afficherEmployesSelection();
+    document.getElementById("employeSelectionModal").classList.remove("hidden");
+  }
+
+  function afficherEmployesSelection() {
+    const search = document.getElementById("employeSelectionSearchInput");
+    const results = document.getElementById("employeSelectionResults");
+    const select = document.getElementById("employeSelectionInput");
+    if (!search || !results || !select) return;
+    const filtre = normaliserTexte(search.value);
+    const options = Array.from(select.options).filter((option) => option.value);
+    const visibles = options.filter((option) =>
+      normaliserTexte(option.textContent).includes(filtre),
+    );
+    results.innerHTML = visibles.length
+      ? visibles
+          .map(
+            (option) =>
+              `<button type="button" class="btn-select" data-employe-id="${option.value}" style="width:100%;margin-bottom:8px;text-align:left">${option.textContent}</button>`,
+          )
+          .join("")
+      : '<div style="padding:10px;color:#9ca3af">Aucun employé trouvé.</div>';
+    results.querySelectorAll("[data-employe-id]").forEach((button) => {
+      button.onclick = () => {
+        select.value = button.dataset.employeId;
+        confirmerSelectionEmploye();
+      };
+    });
+  }
+
+  function fermerSelectionEmploye() {
+    document.getElementById("employeSelectionModal").classList.add("hidden");
+  }
+
+  function confirmerSelectionEmploye() {
+    document.getElementById("employeInput").value = document.getElementById(
+      "employeSelectionInput",
+    ).value;
+    fermerSelectionEmploye();
+    calculerTotaux();
+  }
+
+  function retirerContrat() {
+    contratActif = null;
+    document.getElementById("contratCaisseInfo").classList.add("hidden");
+    document.getElementById("employeInput").innerHTML =
+      '<option value="">-- Sélectionner un employé --</option>';
+    calculerTotaux();
+  }
+
+  function creerEmployeDepuisCaisse() {
+    if (!contratActif) {
+      afficherStatus("Sélectionnez d’abord un contrat.", "error");
+      return;
+    }
+    employeContratActif = contratActif;
+    document.getElementById("employeNameInput").value = "";
+    document.getElementById("employeIdentifierInput").value = "";
+    document.getElementById("employeModal").classList.remove("hidden");
+  }
+
+  function fermerEmployeModal() {
+    document.getElementById("employeModal").classList.add("hidden");
+    employeContratActif = null;
+  }
+
+  function enregistrerEmployeDepuisModal() {
+    const name = document.getElementById("employeNameInput").value.trim();
+    const identifier = document
+      .getElementById("employeIdentifierInput")
+      .value.trim();
+    if (!name || !identifier || !employeContratActif) return;
+    afficherChargementAction("Création de l’employé...");
+    google.script.run
+      .withSuccessHandler((employee) => {
+        masquerChargementAction();
+        employesData.push(employee);
+        selectionnerContrat(employeContratActif.id, false);
+        document.getElementById("employeInput").value = String(employee.id);
+        fermerEmployeModal();
+        afficherStatus("Employé ajouté.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        fermerEmployeModal();
+        afficherStatus(error.message || "Erreur employé.", "error");
+      })
+      .sauvegarderEmploye(
+        {
+          companyId: employeContratActif.companyId,
+          name: name,
+          identifier: identifier,
+        },
+        vendeurActif,
+      );
+  }
+
+  function actualiserApresVente(vente, result) {
+    const montantFinal = Number(result.total ?? vente.montantFinal) || 0;
+    const venteLocale = {
+      id: result.transactionId || vente.orderId || "--",
+      date: new Date().toLocaleDateString("fr-FR"),
+      vendeur: vendeurNomActif || vente.vendeur,
+      paiement: vente.paiement || "Cash",
+      montantFinal,
+      statut: "Complétée",
+    };
+    ventesData.push(venteLocale);
+    dashboardData.totalCA = (Number(dashboardData.totalCA) || 0) + montantFinal;
+    dashboardData.nbVentes = (Number(dashboardData.nbVentes) || 0) + 1;
+    rafraichirClientsDepuisServeur();
+    vente.articles.forEach((item) => {
+      const article = articlesData.find(
+        (candidate) => String(candidate.id) === String(item.article.id),
+      );
+      if (article) article.stock = Math.max(0, article.stock - item.quantity);
+    });
+    afficherArticles();
+    chargerStatistiquesDashboard(
+      document.getElementById("dashboardPeriod")?.value || "30",
+      false,
+    );
+  }
+
+  function validerCommande() {
+    if (panier.length === 0 || encaissementEnCours) return;
+    if (paiementActif === "Facture" && !factureCompteVerifie) {
+      ouvrirChoixClientFacture();
+      return;
+    }
+
+    let sousTotal = 0;
+    panier.forEach((item) => (sousTotal += item.prix * item.quantity));
+    let reduction =
+      contratActif && contratActif.type === "HEBDOMADAIRE_FIXE"
+        ? sousTotal * (contratActif.reduction / 100)
+        : 0;
+    const total = sousTotal - reduction;
+
+    const clientId = document.getElementById("clientSelect")?.value || "";
+    const vente = {
+      vendeur: vendeurActif,
+      articles: panier,
+      montantBrut: sousTotal,
+      reduction: reduction,
+      montantFinal: total,
+      paiement: paiementActif,
+      rewardId: recompenseActive ? recompenseActive.id : null,
+      clientId: clientId || null,
+      contractId: contratActif ? contratActif.id : null,
+      employeeId: contratActif
+        ? document.getElementById("employeInput").value
+        : null,
+      ardoise:
+        paiementActif === "Ardoise" || paiementActif === "Mixte"
+          ? {
+              client: clientId,
+              employe: document.getElementById("employeInput").value,
+            }
+          : null,
+    };
+
+    if (contratActif && !vente.employeeId) {
+      afficherStatus("Sélectionnez un employé pour ce contrat.", "error");
+      return;
+    }
+    if (paiementActif === "Fidelite" && !clientId) {
+      afficherStatus("Sélectionnez un compte fidélité.", "error");
+      return;
+    }
+    encaissementEnCours = true;
+    afficherChargementAction("Encaissement en cours...");
+    google.script.run
+      .withSuccessHandler(function (result) {
+        actualiserApresVente(vente, result || {});
+        if (clientId) {
+          const client = clientsData.find(
+            (item) => String(item.id) === String(clientId),
+          );
+          if (client && client.type === "Particulier") {
+            client.points =
+              Math.max(
+                0,
+                (client.points || 0) - (recompenseActive?.points || 0),
+              ) + Math.floor(Number(result?.total ?? vente.montantFinal) || 0);
+            actualiserCompteClient();
+          }
+        }
+        afficherStatus("Vente validée avec succès !", "success");
+        panier = [];
+        recompenseActive = null;
+        contratActif = null;
+        document.getElementById("clientSelect").value = "";
+        actualiserCompteClient();
+        paiementActif = "Facture";
+        factureCompteVerifie = false;
+        mettreAJourPanier();
+        selectionnerPaiement("Facture", false);
+        encaissementEnCours = false;
+        masquerChargementAction();
+      })
+      .withFailureHandler(function (error) {
+        encaissementEnCours = false;
+        masquerChargementAction();
+        afficherStatus(
+          error && error.message ? error.message : "Vente refusée.",
+          "error",
+        );
+      })
+      .enregistrerVenteFormule(JSON.stringify(vente));
+  }
+
+  function afficherStatus(msg, type) {
+    const div = document.getElementById("statusMessage");
+    div.textContent = msg;
+    div.className = `alert ${type}`;
+    setTimeout(() => (div.className = "alert hidden"), 3000);
+  }
+
+  function afficherChargementAction(message) {
+    const overlay = document.getElementById("encaissementLoading");
+    const texte = overlay?.querySelector("div:last-child");
+    if (texte) texte.textContent = message || "Mise à jour en cours...";
+    document.querySelectorAll("button").forEach((button) => {
+      button.dataset.loadingDisabled = String(button.disabled);
+      button.disabled = true;
+    });
+    overlay?.classList.remove("hidden");
+  }
+
+  function masquerChargementAction() {
+    document
+      .querySelectorAll("button[data-loading-disabled]")
+      .forEach((button) => {
+        button.disabled = button.dataset.loadingDisabled === "true";
+        delete button.dataset.loadingDisabled;
+      });
+    document.getElementById("encaissementLoading")?.classList.add("hidden");
+  }
+
+  function remplirPageRecompenses() {
+    const articleSelect = document.getElementById("rewardArticleInput");
+    if (articleSelect) {
+      articleSelect.innerHTML = articlesData
+        .map(
+          (article) => `<option value="${article.id}">${article.nom}</option>`,
+        )
+        .join("");
+    }
+    const tbody = document.getElementById("recompensesTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = recompensesData.length
+      ? recompensesData
+          .map((reward) => {
+            const article = articlesData.find(
+              (item) => String(item.id) === String(reward.articleId),
+            );
+            return `<tr><td>${reward.label}</td><td>${article ? article.nom : "Article introuvable"}</td><td>${reward.points}</td></tr>`;
+          })
+          .join("")
+      : '<tr><td colspan="3" style="color:#9ca3af">Aucune récompense configurée.</td></tr>';
+  }
+
+  function enregistrerRecompenseDepuisPage() {
+    const name = document.getElementById("rewardNameInput").value.trim();
+    const articleId = document.getElementById("rewardArticleInput").value;
+    const points =
+      Number(document.getElementById("rewardPointsInput").value) || 0;
+    if (!name || !articleId || points < 1) {
+      afficherStatus("Nom, article et points sont obligatoires.", "error");
+      return;
+    }
+    afficherChargementAction("Enregistrement de la récompense...");
+    google.script.run
+      .withSuccessHandler((reward) => {
+        masquerChargementAction();
+        if (reward) recompensesData.push(reward);
+        remplirPageRecompenses();
+        document.getElementById("rewardNameInput").value = "";
+        document.getElementById("rewardPointsInput").value = "";
+        afficherStatus("Récompense enregistrée.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur récompense.", "error");
+      })
+      .sauvegarderRecompense(
+        { name, articleId, points, status: "ACTIF" },
+        vendeurActif,
+      );
+  }
+
+  // --- FACTURATION ---
+  function chargerFactures() {
+    const body = document.getElementById("facturesTableBody");
+    if (body)
+      body.innerHTML = '<tr><td colspan="8">Chargement...</td></tr>';
+    google.script.run
+      .withSuccessHandler((factures) => {
+        facturesData = Array.isArray(factures) ? factures : [];
+        remplirTableauFactures();
+      })
+      .withFailureHandler((error) => {
+        if (body)
+          body.innerHTML = `<tr><td colspan="8">${error?.message || "Erreur de chargement."}</td></tr>`;
+        afficherStatus(error.message || "Erreur factures.", "error");
+      })
+      .obtenirFactures(vendeurActif);
+  }
+
+  function remplirTableauFactures() {
+    const body = document.getElementById("facturesTableBody");
+    if (!body) return;
+    body.innerHTML = facturesData.length
+      ? facturesData
+          .map((facture) => {
+            const statutClass =
+              facture.statut === "Payée"
+                ? "active"
+                : facture.statut === "Annulée"
+                  ? "inactive"
+                  : "";
+            return `<tr>
+        <td>${facture.id}</td>
+        <td>${facture.date || "-"}</td>
+        <td>${facture.clientNom || "-"}</td>
+        <td>${formaterMonnaie(facture.montant)}</td>
+        <td>${facture.typePaiement || "-"}</td>
+        <td><span class="status-pill ${statutClass}">${facture.statut}</span></td>
+        <td>${facture.datePaiement || "-"}</td>
+        <td><div class="table-actions">
+          <button type="button" onclick="ouvrirFormulaireFacture('${facture.id}')">Modifier</button>
+          ${facture.statut !== "Payée" ? `<button type="button" onclick="changerStatutFactureUI('${facture.id}', 'Payée')">Marquer payée</button>` : ""}
+          ${facture.statut !== "Annulée" ? `<button type="button" onclick="changerStatutFactureUI('${facture.id}', 'Annulée')">Annuler</button>` : ""}
+          <button type="button" onclick="supprimerFactureDepuisPage('${facture.id}')">Supprimer</button>
+        </div></td>
+      </tr>`;
+          })
+          .join("")
+      : '<tr><td colspan="8">Aucune facture.</td></tr>';
+  }
+
+  function ouvrirFormulaireFacture(id = "") {
+    const facture = facturesData.find((item) => String(item.id) === String(id));
+    const select = document.getElementById("factureClientInput");
+    select.innerHTML = clientsData
+      .map(
+        (client) =>
+          `<option value="${client.id}">${client.nom}${client.type === "Entreprise" ? " (Entreprise)" : ""}</option>`,
+      )
+      .join("");
+    document.getElementById("factureModalTitle").textContent = facture
+      ? "Modifier la facture"
+      : "Émettre une facture";
+    document.getElementById("factureIdInput").value = facture ? facture.id : "";
+    if (facture) select.value = String(facture.clientId);
+    document.getElementById("factureArticlesInput").value =
+      facture?.articles || "";
+    document.getElementById("factureMontantInput").value =
+      facture?.montant || "";
+    document.getElementById("factureTypePaiementInput").value =
+      facture?.typePaiement || "Cash";
+    document.getElementById("factureStatutInput").value =
+      facture?.statut || "En attente";
+    document.getElementById("factureNotesInput").value = facture?.notes || "";
+    document.getElementById("factureFormModal").classList.remove("hidden");
+  }
+
+  function fermerFormulaireFacture() {
+    document.getElementById("factureFormModal").classList.add("hidden");
+  }
+
+  function enregistrerFactureDepuisFormulaire() {
+    const facture = {
+      id: document.getElementById("factureIdInput").value || null,
+      clientId: document.getElementById("factureClientInput").value,
+      articles: document.getElementById("factureArticlesInput").value.trim(),
+      montant: Number(document.getElementById("factureMontantInput").value),
+      typePaiement: document.getElementById("factureTypePaiementInput").value,
+      statut: document.getElementById("factureStatutInput").value,
+      notes: document.getElementById("factureNotesInput").value.trim(),
+    };
+    if (!facture.clientId)
+      return afficherStatus("Sélectionnez un client.", "error");
+    if (!facture.montant || facture.montant <= 0)
+      return afficherStatus("Le montant doit être supérieur à 0.", "error");
+    afficherChargementAction("Enregistrement de la facture...");
+    google.script.run
+      .withSuccessHandler((factures) => {
+        masquerChargementAction();
+        facturesData = Array.isArray(factures) ? factures : facturesData;
+        remplirTableauFactures();
+        fermerFormulaireFacture();
+        afficherStatus("Facture enregistrée.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur facture.", "error");
+      })
+      .sauvegarderFacture(facture, vendeurActif);
+  }
+
+  function changerStatutFactureUI(id, statut) {
+    afficherChargementAction("Mise à jour du statut...");
+    google.script.run
+      .withSuccessHandler((factures) => {
+        masquerChargementAction();
+        facturesData = Array.isArray(factures) ? factures : facturesData;
+        remplirTableauFactures();
+        afficherStatus("Statut mis à jour.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur statut.", "error");
+      })
+      .changerStatutFacture(id, statut, vendeurActif);
+  }
+
+  function supprimerFactureDepuisPage(id) {
+    if (!confirm("Supprimer définitivement cette facture ?")) return;
+    afficherChargementAction("Suppression de la facture...");
+    google.script.run
+      .withSuccessHandler((factures) => {
+        masquerChargementAction();
+        facturesData = Array.isArray(factures) ? factures : facturesData;
+        remplirTableauFactures();
+        afficherStatus("Facture supprimée.", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur suppression.", "error");
+      })
+      .supprimerFacture(id, vendeurActif);
+  }
+
+  // --- DASHBOARD & CONTRATS UI ---
+  function mettreAJourDashboard(dash, ventes) {
+    document.getElementById("dashTotalCA").textContent = formaterMonnaie(
+      dash.totalCA,
+    );
+    document.getElementById("dashNbVentes").textContent = dash.nbVentes;
+    document.getElementById("dashPanierMoyen").textContent = formaterMonnaie(
+      dash.panierMoyen || 0,
+    );
+    document.getElementById("dashMeilleurVendeur").textContent =
+      dash.meilleurVendeur || "-";
+    document.getElementById("dashMeilleurEmploye").textContent =
+      dash.meilleurEmploye || "-";
+    document.getElementById("dashArticleTop").textContent = dash.articleTop
+      ? `${dash.articleTop} (${dash.articleTopQuantite || 0})`
+      : "-";
+    document.getElementById("dashPaiements").textContent = dash.paiements
+      ? Object.entries(dash.paiements)
+          .map(([name, count]) => `${name}: ${count}`)
+          .join(" · ") || "-"
+      : "-";
+
+    const stockContainer = document.getElementById("dashStockContainer");
+    stockContainer.innerHTML =
+      '<table class="data-table"><thead><tr><th>Article</th><th>Stock</th><th>Prix</th></tr></thead><tbody>';
+    articlesData.forEach((a) => {
+      stockContainer.querySelector("tbody").innerHTML +=
+        `<tr><td>${a.nom}</td><td>${a.stock}</td><td>${a.prix.toFixed(2)} ${deviseActuelle}</td></tr>`;
+    });
+    stockContainer.innerHTML += "</tbody></table>";
+
+    const ventesContainer = document.getElementById("dashVentesContainer");
+    if (!ventesContainer) return;
+    if (!ventes || !ventes.length) {
+      ventesContainer.innerHTML =
+        '<div style="padding:12px; color:#9ca3af;">Aucune vente enregistrée.</div>';
+      return;
+    }
+    ventesContainer.innerHTML =
+      '<table class="data-table"><thead><tr><th>ID</th><th>Date</th><th>Vendeur</th><th>Paiement</th><th>Total</th><th>Statut</th></tr></thead><tbody></tbody></table>';
+    const tbody = ventesContainer.querySelector("tbody");
+    ventes
+      .slice()
+      .reverse()
+      .forEach((vente) => {
+        const row = document.createElement("tr");
+        [
+          vente.id,
+          vente.date || "--",
+          vente.vendeur || "--",
+          vente.paiement || "--",
+          formaterMonnaie(vente.montantFinal),
+          vente.statut || "--",
+        ].forEach((value) => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        tbody.appendChild(row);
+      });
+  }
+
+  function chargerStatistiquesDashboard(
+    period = "30",
+    afficherChargement = true,
+  ) {
+    if (afficherChargement)
+      afficherChargementAction("Chargement des statistiques...");
+    google.script.run
+      .withSuccessHandler((stats) => {
+        if (afficherChargement) masquerChargementAction();
+        mettreAJourDashboard(stats, stats.ventes || ventesData);
+      })
+      .withFailureHandler((error) => {
+        if (afficherChargement) masquerChargementAction();
+        afficherStatus(error.message || "Erreur statistiques.", "error");
+      })
+      .obtenirStatistiquesDashboard(period, vendeurActif || "");
+  }
+
+  function remplirTableauContrats() {
+    const tbody = document.getElementById("contratsTableBody");
+    tbody.innerHTML = "";
+    contratsData.forEach((c) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${c.id}</td>
+          <td>${c.companyName || "Entreprise #" + c.companyId}</td>
+          <td>${c.type}</td>
+          <td>${c.type === "DEMI_ARDOISE" ? c.companyPercent + "% entreprise" : c.reduction + "%"}</td>
+          <td>${c.limiteEuro} ${deviseActuelle}</td>
+          <td>${c.status}</td>
+          <td><button class="btn-select" style="padding:4px 8px; font-size:11px;" onclick="modifierContratModal('${c.id}')">Éditer</button><button class="btn-select" style="padding:4px 8px; font-size:11px; margin-left:4px;" onclick="changerStatutContratUI('${c.id}', '${c.status === "ACTIF" ? "SUSPENDU" : "ACTIF"}')">${c.status === "ACTIF" ? "Suspendre" : "Activer"}</button></td>
+        </tr>
+      `;
+    });
+  }
+
+  function remplirSelectEntreprisesContrat(selectedCompanyId = "") {
+    const select = document.getElementById("contratCompanyInput");
+    if (!select) return;
+    const entreprises = clientsData.filter(
+      (client) => client.type === "Entreprise",
+    );
+    select.innerHTML =
+      '<option value="">Sélectionner un compte entreprise</option>' +
+      entreprises
+        .map(
+          (client) =>
+            `<option value="${client.id}" ${String(client.id) === String(selectedCompanyId) ? "selected" : ""}>${client.nom}</option>`,
+        )
+        .join("");
+  }
+
+  function ouvrirModalContrat() {
+    contratEnEditionId = null;
+    document.getElementById("contratModalTitle").textContent =
+      "Nouveau contrat entreprise";
+    const input = document.getElementById("contratCompanyInput");
+    input.disabled = false;
+    remplirSelectEntreprisesContrat();
+    input.value = "";
+    document.getElementById("contratFormModal").classList.remove("hidden");
+    actualiserFormulaireContrat();
+  }
+
+  function fermerFormulaireContrat() {
+    document.getElementById("contratFormModal").classList.add("hidden");
+  }
+
+  function actualiserFormulaireContrat() {
+    const type = document.getElementById("contratTypeInput").value;
+    document
+      .getElementById("contratDemiFields")
+      .classList.toggle("hidden", type !== "DEMI_ARDOISE");
+    document
+      .getElementById("contratHebdoFields")
+      .classList.toggle("hidden", type !== "HEBDOMADAIRE_FIXE");
+    const percent =
+      Number(document.getElementById("contratPercentInput").value) || 0;
+    document.getElementById("contratEmployeePercent").textContent =
+      `Part employé : ${100 - percent}%`;
+  }
+
+  function enregistrerContratDepuisFormulaire() {
+    const companyId = document.getElementById("contratCompanyInput").value;
+    const company = clientsData.find(
+      (client) =>
+        client.type === "Entreprise" && String(client.id) === String(companyId),
+    );
+    if (!company) {
+      afficherStatus("Sélectionnez un compte entreprise existant.", "error");
+      return;
+    }
+    const contract = {
+      id: contratEnEditionId,
+      companyId: company.id,
+      type: document.getElementById("contratTypeInput").value,
+      responsibleName: document.getElementById("contratResponsibleInput").value,
+      responsiblePhone: document.getElementById("contratPhoneInput").value,
+      discordWebhook: document.getElementById("contratWebhookInput").value,
+      companyPercent:
+        Number(document.getElementById("contratPercentInput").value) || 0,
+      includedQuantity:
+        Number(document.getElementById("contratQuantityInput").value) || 0,
+      reduction:
+        Number(document.getElementById("contratDiscountInput").value) || 0,
+      status:
+        contratsData.find(
+          (item) => String(item.id) === String(contratEnEditionId),
+        )?.status || "ACTIF",
+    };
+    afficherChargementAction("Enregistrement du contrat...");
+    google.script.run
+      .withSuccessHandler((contratServeur) => {
+        masquerChargementAction();
+        const contratLocal = contratServeur || contract;
+        const index = contratsData.findIndex(
+          (item) => String(item.id) === String(contratLocal.id),
+        );
+        if (index >= 0) contratsData[index] = contratLocal;
+        else contratsData.push(contratLocal);
+        remplirTableauContrats();
+        fermerFormulaireContrat();
+        contratEnEditionId = null;
+        afficherStatus("Contrat enregistré", "success");
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        afficherStatus(error.message || "Erreur contrat.", "error");
+      })
+      .sauvegarderContratUI(contract, vendeurActif);
+  }
+
+  function changerStatutContratUI(id, status) {
+    const contrat = contratsData.find((item) => String(item.id) === String(id));
+    if (!contrat) return;
+    const ancienStatus = contrat.status;
+    const ancienActif = contrat.actif;
+    contrat.status = String(status).toUpperCase();
+    contrat.actif = contrat.status === "ACTIF";
+    remplirTableauContrats();
+    afficherStatus(
+      contrat.actif ? "Contrat activé" : "Contrat suspendu",
+      "success",
+    );
+    afficherChargementAction(
+      contrat.actif ? "Activation du contrat..." : "Suspension du contrat...",
+    );
+    google.script.run
+      .withSuccessHandler((contratServeur) => {
+        masquerChargementAction();
+        if (contratServeur) {
+          Object.assign(contrat, contratServeur);
+          remplirTableauContrats();
+        }
+      })
+      .withFailureHandler((error) => {
+        masquerChargementAction();
+        contrat.status = ancienStatus;
+        contrat.actif = ancienActif;
+        remplirTableauContrats();
+        afficherStatus(error.message || "Erreur statut.", "error");
+      })
+      .changerStatutContrat(id, status, vendeurActif);
+  }
+
+  function modifierContratModal(id) {
+    const contrat = contratsData.find((c) => c && String(c.id) === String(id));
+    if (!contrat) return;
+    contratEnEditionId = contrat.id;
+    document.getElementById("contratModalTitle").textContent =
+      "Modifier le contrat entreprise";
+    const companyInput = document.getElementById("contratCompanyInput");
+    remplirSelectEntreprisesContrat(contrat.companyId);
+    const company = clientsData.find(
+      (client) => String(client.id) === String(contrat.companyId),
+    );
+    companyInput.value = company
+      ? String(company.id)
+      : String(contrat.companyId || "");
+    companyInput.disabled = true;
+    document.getElementById("contratTypeInput").value = contrat.type;
+    document.getElementById("contratResponsibleInput").value =
+      contrat.responsibleName || "";
+    document.getElementById("contratPhoneInput").value =
+      contrat.responsiblePhone || "";
+    document.getElementById("contratWebhookInput").value =
+      contrat.discordWebhook || "";
+    document.getElementById("contratPercentInput").value =
+      contrat.companyPercent || 0;
+    document.getElementById("contratQuantityInput").value =
+      contrat.includedQuantity || 0;
+    document.getElementById("contratDiscountInput").value =
+      contrat.reduction || 0;
+    actualiserFormulaireContrat();
+    document.getElementById("contratFormModal").classList.remove("hidden");
+  }
+
+  window.onload = initialiserApp;
+</script>
