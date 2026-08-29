@@ -1,41 +1,29 @@
 <script>
-/** HORNYS-POS V3 — resilient client-side payment flow helpers. */
+/** HORNYS-POS V3 — canonical client checkout helper. */
 (function () {
   'use strict';
-
-  function requestId() {
-    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return 'POS-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  function newId() {
+    return window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'POS-' + Date.now() + '-' + Math.random().toString(36).slice(2);
   }
-
-  window.POSPaymentV3 = {
-    busy: false,
-    begin: function () {
-      if (this.busy) return null;
-      this.busy = true;
-      if (typeof afficherChargementAction === 'function') afficherChargementAction('Encaissement en cours…');
-      return requestId();
-    },
-    finish: function () {
-      this.busy = false;
-      if (typeof masquerChargementAction === 'function') masquerChargementAction();
-    },
-    pay: function (payload, success, failure) {
-      var id = this.begin();
-      if (!id) return;
-      payload = Object.assign({}, payload || {}, { orderId: payload && payload.orderId || id });
-      google.script.run
-        .withSuccessHandler(function (result) {
-          POSPaymentV3.finish();
-          if (typeof success === 'function') success(result);
-        })
-        .withFailureHandler(function (error) {
-          POSPaymentV3.finish();
-          if (typeof failure === 'function') failure(error);
-          else if (typeof afficherStatus === 'function') afficherStatus(error && error.message || 'Échec de l’encaissement.', 'error');
-        })
-        .enregistrerVenteFormule(payload);
+  function submit(payload, success, failure) {
+    if (!payload || !Array.isArray(payload.articles) || !payload.articles.length) {
+      if (typeof failure === 'function') failure(new Error('Le panier est vide.'));
+      return false;
     }
-  };
+    if (window.POSPaymentGuardV3 && !POSPaymentGuardV3.lock()) return false;
+    var data = Object.assign({}, payload, { orderId: payload.orderId || newId() });
+    google.script.run
+      .withSuccessHandler(function (result) {
+        if (window.POSPaymentGuardV3) POSPaymentGuardV3.unlock();
+        if (typeof success === 'function') success(result);
+      })
+      .withFailureHandler(function (error) {
+        if (window.POSPaymentGuardV3) POSPaymentGuardV3.unlock();
+        if (typeof failure === 'function') failure(error);
+      })
+      .enregistrerVenteCheckoutV3(data);
+    return true;
+  }
+  window.POSPaymentV3 = { submit: submit, newId: newId };
 })();
 </script>
