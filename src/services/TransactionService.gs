@@ -1,9 +1,10 @@
 /**
  * HORNYS-POS V3 — transactional primitives.
  *
- * Google Sheets n'offre pas de transaction SQL. Ce service fournit donc les
- * garanties applicables au POS : verrouillage, idempotence, validation et
- * journalisation autour d'une opération métier.
+ * During the V2 -> V3 migration, some legacy domain functions still own
+ * their ScriptLock. The transaction service therefore provides idempotency,
+ * validation and auditing here, while allowing those legacy functions to
+ * retain their existing lock until their internals are extracted.
  */
 var TransactionService = (function () {
   'use strict';
@@ -11,34 +12,28 @@ var TransactionService = (function () {
   function execute(key, actor, operation) {
     var operationKey = Validation.required(key, 'Clé de transaction');
     var idempotencyKey = 'sale:' + String(operationKey);
-
     var existing = Idempotency.get(idempotencyKey);
     if (existing) return existing;
 
-    return DataStore.withLock(function () {
-      existing = Idempotency.get(idempotencyKey);
-      if (existing) return existing;
+    var result = operation();
+    var response = result && result.success === false
+      ? result
+      : Response.ok(result);
 
-      var result = operation();
-      var response = result && result.success === false
-        ? result
-        : Response.ok(result);
-
-      Idempotency.put(idempotencyKey, response);
-      try {
-        AuditLog.record(
-          'TRANSACTION',
-          {
-            key: operationKey,
-            success: response.success === true
-          },
-          actor || 'POS'
-        );
-      } catch (auditError) {
-        console.error('Audit transaction indisponible', auditError);
-      }
-      return response;
-    }, 15000);
+    Idempotency.put(idempotencyKey, response, 900);
+    try {
+      AuditLog.record(
+        'TRANSACTION',
+        {
+          key: operationKey,
+          success: response.success === true
+        },
+        actor || 'POS'
+      );
+    } catch (auditError) {
+      console.error('Audit transaction indisponible', auditError);
+    }
+    return response;
   }
 
   function validateCart(cart) {
