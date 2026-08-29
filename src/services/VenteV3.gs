@@ -14,6 +14,10 @@ function enregistrerVenteFormule(venteJSON, requestId) {
     throw new Error('Vendeur et commande obligatoires.');
   }
 
+  // Preserve the legacy authorization boundary: the browser may provide the
+  // vendor id, but the server still resolves the vendor and its caisse role.
+  verifierPermission(vente.vendeur, 'caisse');
+
   var operationId = String(
     requestId || vente.requestId || vente.orderId || Utilities.getUuid()
   ).trim();
