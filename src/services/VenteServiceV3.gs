@@ -77,16 +77,12 @@ var VenteServiceV3 = (function () {
 
     if (vente.ardoise && vente.ardoise.client) ArdoiseServiceV3.create({ clientId: vente.ardoise.client,
       employe: vente.ardoise.employe || '-', total: total, paid: 0, startDate: now }, vente.vendeur);
-    if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') {
-      CustomerServiceV3.addPoints(vente.clientId, total);
-    }
+    if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') CustomerServiceV3.addPoints(vente.clientId, total);
     return { success: true, transactionId: orderId, total: total, employeeAmount: total, companyAmount: 0 };
   }
 
-  // Keep sheet-name resolution in one place; this avoids coupling the domain service
-  // to literal sheet names when the mapping changes.
-  function obterFeuilleVente_() { return obterFeuille('Ventes'); }
-  function obterFeuilleContrats_() { return obterFeuille('CONTRACT_TRANSACTIONS'); }
+  function obterFeuilleVente_() { return obtenirFeuille('Ventes'); }
+  function obterFeuilleContrats_() { return obtenirFeuille('CONTRACT_TRANSACTIONS'); }
 
   function execute(vente) {
     Validation.object(vente, 'Vente');
