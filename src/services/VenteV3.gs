@@ -1,14 +1,18 @@
 /**
  * HORNYS-POS V3 — public sale entrypoint.
  *
- * Compatibility layer: the existing business implementation remains the
- * source of truth for pricing, contracts, stock, loyalty and ledger writes,
- * while this entrypoint adds the V3 transactional boundary and idempotency.
+ * The existing frontend still calls `enregistrerVenteFormule`. To migrate the
+ * live flow without rewriting the large client in one risky change, this file
+ * captures the legacy implementation once and replaces the public entrypoint
+ * with the V3 transactional wrapper.
  *
- * Frontend payloads may provide requestId. For older clients, orderId is used
- * when available; otherwise a UUID is generated, preserving compatibility.
+ * IMPORTANT: this file must be loaded after Code.js in the Apps Script project
+ * so the legacy function has already been parsed before it is captured.
  */
-function enregistrerVenteFormuleV3(venteJSON, requestId) {
+
+var _hornysLegacyEnregistrerVenteFormule = enregistrerVenteFormule;
+
+var enregistrerVenteFormule = function (venteJSON, requestId) {
   var vente = typeof venteJSON === 'string' ? JSON.parse(venteJSON) : venteJSON;
   Validation.object(vente, 'Vente');
   Validation.required(vente.vendeur, 'Vendeur');
@@ -25,20 +29,21 @@ function enregistrerVenteFormuleV3(venteJSON, requestId) {
     operationId,
     String(vente.vendeur),
     function () {
-      // The legacy implementation performs the complete domain operation.
-      // It is deliberately called only inside TransactionService.execute(),
-      // so duplicate browser submissions receive the cached first response.
-      var result = enregistrerVenteFormuleLegacy_(vente);
-      return result;
+      return _hornysLegacyEnregistrerVenteFormule(vente);
     }
   );
+};
+
+/** Explicit V3 endpoint for the next frontend migration step. */
+function enregistrerVenteFormuleV3(venteJSON, requestId) {
+  return enregistrerVenteFormule(venteJSON, requestId);
 }
 
-/**
- * Temporary compatibility alias used during the V2 -> V3 migration.
- * Keeping it isolated makes the eventual extraction of the domain operation
- * from Code.js safe and reviewable.
- */
-function enregistrerVenteFormuleLegacy_(vente) {
-  return enregistrerVenteFormule(vente);
+/** Diagnostic used to verify the live public entrypoint after deployment. */
+function verifierPointEntreeVenteV3() {
+  return {
+    ok: typeof enregistrerVenteFormule === 'function',
+    v3: String(enregistrerVenteFormule).indexOf('TransactionService.execute') !== -1,
+    legacyCaptured: typeof _hornysLegacyEnregistrerVenteFormule === 'function'
+  };
 }
