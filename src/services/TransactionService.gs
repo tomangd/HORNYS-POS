@@ -1,10 +1,9 @@
 /**
  * HORNYS-POS V3 — transactional primitives.
  *
- * During the V2 -> V3 migration, some legacy domain functions still own
- * their ScriptLock. The transaction service therefore provides idempotency,
- * validation and auditing here, while allowing those legacy functions to
- * retain their existing lock until their internals are extracted.
+ * Keeps the public response shape of the existing POS while adding a
+ * transaction boundary, idempotency and audit logging around the legacy
+ * business operation during the migration.
  */
 var TransactionService = (function () {
   'use strict';
@@ -15,25 +14,52 @@ var TransactionService = (function () {
     var existing = Idempotency.get(idempotencyKey);
     if (existing) return existing;
 
-    var result = operation();
-    var response = result && result.success === false
-      ? result
-      : Response.ok(result);
-
-    Idempotency.put(idempotencyKey, response, 900);
-    try {
-      AuditLog.record(
-        'TRANSACTION',
-        {
-          key: operationKey,
-          success: response.success === true
-        },
-        actor || 'POS'
-      );
-    } catch (auditError) {
-      console.error('Audit transaction indisponible', auditError);
+    // The legacy sale implementation owns the ScriptLock. Use a separate
+    // user lock here to serialize repeated submissions without nesting the
+    // same ScriptLock and risking a deadlock.
+    var lock = LockService.getUserLock();
+    if (!lock.tryLock(10000)) {
+      throw new Error('Une transaction est déjà en cours. Réessayez dans quelques secondes.');
     }
-    return response;
+
+    try {
+      // Re-check after acquiring the lock: another request may have finished
+      // while this request was waiting.
+      existing = Idempotency.get(idempotencyKey);
+      if (existing) return existing;
+
+      var result = operation();
+      if (!result || typeof result !== 'object') {
+        throw new Error('La transaction n’a retourné aucun résultat valide.');
+      }
+
+      // Preserve the legacy response contract. The frontend currently expects
+      // transactionId/total/success at the root rather than under data.
+      var response = Object.assign({}, result, {
+        success: result.success !== false,
+        v3: true,
+        requestId: operationKey
+      });
+
+      Idempotency.put(idempotencyKey, response, 900);
+      try {
+        AuditLog.record(
+          'TRANSACTION',
+          {
+            key: operationKey,
+            success: response.success === true,
+            transactionId: response.transactionId || ''
+          },
+          actor || 'POS'
+        );
+      } catch (auditError) {
+        console.error('Audit transaction indisponible', auditError);
+      }
+
+      return response;
+    } finally {
+      lock.releaseLock();
+    }
   }
 
   function validateCart(cart) {
