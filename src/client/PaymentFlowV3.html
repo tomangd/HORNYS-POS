@@ -1,29 +1,20 @@
 <script>
-/** HORNYS-POS V3 — canonical client checkout helper. */
+/** HORNYS-POS V3 — compatibility facade. Canonical implementation lives in CheckoutBridgeV3. */
 (function () {
   'use strict';
-  function newId() {
-    return window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'POS-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-  }
-  function submit(payload, success, failure) {
-    if (!payload || !Array.isArray(payload.articles) || !payload.articles.length) {
-      if (typeof failure === 'function') failure(new Error('Le panier est vide.'));
-      return false;
+  window.POSPaymentV3 = {
+    submit: function (payload, success, failure) {
+      if (!window.POSCheckoutV3 || typeof POSCheckoutV3.submit !== 'function') {
+        if (typeof failure === 'function') failure(new Error('Le moteur de caisse V3 n’est pas chargé.'));
+        return false;
+      }
+      return POSCheckoutV3.submit(payload, success, failure);
+    },
+    newId: function () {
+      return (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'POS-' + Date.now() + '-' + Math.random().toString(36).slice(2);
     }
-    if (window.POSPaymentGuardV3 && !POSPaymentGuardV3.lock()) return false;
-    var data = Object.assign({}, payload, { orderId: payload.orderId || newId() });
-    google.script.run
-      .withSuccessHandler(function (result) {
-        if (window.POSPaymentGuardV3) POSPaymentGuardV3.unlock();
-        if (typeof success === 'function') success(result);
-      })
-      .withFailureHandler(function (error) {
-        if (window.POSPaymentGuardV3) POSPaymentGuardV3.unlock();
-        if (typeof failure === 'function') failure(error);
-      })
-      .enregistrerVenteCheckoutV3(data);
-    return true;
-  }
-  window.POSPaymentV3 = { submit: submit, newId: newId };
+  };
 })();
 </script>
