@@ -30,61 +30,66 @@ var VenteServiceV3 = (function () {
     return employee;
   }
 
+  function validatePayment_(vente, total) {
+    return PaymentServiceV3.validateSale(vente, total);
+  }
+
   function redeemReward_(vente) {
     if (!vente.rewardId) return;
     if (!vente.clientId || vente.paiement !== 'Fidelite') throw new Error('Un compte fidélité est obligatoire pour cette récompense.');
     CustomerServiceV3.redeem(vente.clientId, vente.rewardId);
   }
 
-  function persist_(vente, articles, contract, employee, subtotal, discount, total, now) {
+  function persist_(vente, articles, contract, employee, subtotal, discount, total, now, payment) {
     var transactionId = prochainIdentifiant(obtenirFeuille('CONTRACT_TRANSACTIONS'), 'TX', now.getFullYear());
     var orderId = String(vente.orderId || transactionId);
     var companyAmount = contract ? arrondirMontant(total * Number(contract.companyPercent || 0) / 100) : 0;
     var employeeAmount = arrondirMontant(total - companyAmount);
-    var salesSheet = obtenirFeuille('Ventes');
+    var salesSheet = obterFeuilleVente_();
     salesSheet.appendRow([
-      salesSheet.getLastRow() + 1,
-      Utilities.formatDate(now, 'Europe/Paris', 'dd/MM/yyyy'),
-      Utilities.formatDate(now, 'Europe/Paris', 'HH:mm:ss'),
-      vente.vendeur, JSON.stringify(articles), subtotal, discount, total,
-      vente.paiement || 'Cash', companyAmount > 0 ? 'Oui' : 'Non',
-      contract ? 'CONTRAT_' + contract.type : 'Complétée', vente.clientId || ''
+      salesSheet.getLastRow() + 1, Utilities.formatDate(now, 'Europe/Paris', 'dd/MM/yyyy'),
+      Utilities.formatDate(now, 'Europe/Paris', 'HH:mm:ss'), vente.vendeur,
+      JSON.stringify(articles), subtotal, discount, total, payment.method,
+      companyAmount > 0 ? 'Oui' : 'Non', contract ? 'CONTRAT_' + contract.type : 'Complétée', vente.clientId || ''
     ]);
 
     StockServiceV3.consume(articles, vente.vendeur, orderId);
 
     if (contract) {
       var company = trouverClientParId(contract.companyId) || {};
-      var txSheet = obtenirFeuille('CONTRACT_TRANSACTIONS');
+      var txSheet = obterFeuilleContrats_();
       txSheet.appendRow([
-        transactionId, contract.id, contract.companyId, employee.id,
-        employee.name, employee.identifier, orderId, contract.type,
-        total, employeeAmount, companyAmount, discount,
-        vente.paiement || 'Cash', vente.vendeur, JSON.stringify(articles),
-        now, 'NON_ENVOYE', 'ENREGISTREE'
+        transactionId, contract.id, contract.companyId, employee.id, employee.name, employee.identifier,
+        orderId, contract.type, total, employeeAmount, companyAmount, discount, payment.method,
+        vente.vendeur, JSON.stringify(articles), now, 'NON_ENVOYE', 'ENREGISTREE'
       ]);
-      if (contract.type === 'HEBDOMADAIRE_FIXE') {
-        articles.forEach(function (item) {
-          ajouterConsommation({ contractId: contract.id, companyId: contract.companyId, transactionId: transactionId,
-            productId: item.id, productName: item.nom, quantity: item.quantity, unitPrice: item.prix, consumedAt: now });
-        });
-      }
+      if (contract.type === 'HEBDOMADAIRE_FIXE') articles.forEach(function (item) {
+        ajouterConsommation({ contractId: contract.id, companyId: contract.companyId, transactionId: transactionId,
+          productId: item.id, productName: item.nom, quantity: item.quantity, unitPrice: item.prix, consumedAt: now });
+      });
       if (companyAmount > 0) ajouterEntreeLedger({ companyId: contract.companyId, contractId: contract.id,
         transactionId: transactionId, employeeId: employee.id, amount: companyAmount, type: 'DEBIT', createdAt: now, status: 'OUVERT' });
       var webhookStatus = envoyerWebhookContrat(contract, employee, articles, total, employeeAmount, companyAmount, vente.vendeur, transactionId);
       txSheet.getRange(txSheet.getLastRow(), 17).setValue(webhookStatus);
-      return { success: true, transactionId: transactionId, total: total, employeeAmount: employeeAmount, companyAmount: companyAmount,
-        companyName: company.companyName || company.nom || contract.companyName };
+      return { success: true, transactionId: transactionId, total: total, employeeAmount: employeeAmount,
+        companyAmount: companyAmount, companyName: company.companyName || company.nom || contract.companyName };
     }
 
-    if (vente.ardoise && vente.ardoise.client) {
-      ArdoiseServiceV3.create({ clientId: vente.ardoise.client, employe: vente.ardoise.employe || '-', total: total, paid: 0, startDate: now, status: 'En attente' }, vente.vendeur);
+    if (vente.ardoise && vente.ardoise.client) ArdoiseServiceV3.create({ clientId: vente.ardoise.client,
+      employe: vente.ardoise.employe || '-', total: total, paid: 0, startDate: now }, vente.vendeur);
+    if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') {
+      CustomerServiceV3.addPoints(vente.clientId, total);
     }
-    if (!vente.rewardId && vente.clientId && (trouverClientParId(vente.clientId) || {}).type === 'Particulier') CustomerServiceV3.addPoints(vente.clientId, total);
     return { success: true, transactionId: orderId, total: total, employeeAmount: total, companyAmount: 0 };
   }
 
+  // Keep sheet-name resolution in one place; this avoids coupling the domain service
+  // to literal sheet names when the mapping changes.
+  function obterFeuilleVente_() { return obterFeuille('Ventes'); }
+  function obterFeuilleContrats_() { return obterFeuille('CONTRACT_TRANSACTIONS'); }
+
   function execute(vente) {
+    Validation.object(vente, 'Vente');
     var articles = buildArticles_(vente);
     var now = new Date();
     var contract = findContract_(vente, now);
@@ -92,8 +97,9 @@ var VenteServiceV3 = (function () {
     var subtotal = arrondirMontant(articles.reduce(function (sum, item) { return sum + item.prix * item.quantity; }, 0));
     var discount = contract && contract.type === 'HEBDOMADAIRE_FIXE' ? arrondirMontant(subtotal * Number(contract.reduction || 0) / 100) : 0;
     var total = arrondirMontant(subtotal - discount);
+    var payment = validatePayment_(vente, total);
     redeemReward_(vente);
-    return persist_(vente, articles, contract, employee, subtotal, discount, total, now);
+    return persist_(vente, articles, contract, employee, subtotal, discount, total, now, payment);
   }
 
   return { execute: execute };
