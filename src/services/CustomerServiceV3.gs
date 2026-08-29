@@ -35,5 +35,12 @@ var CustomerServiceV3 = (function () {
     return result;
   }
 
-  return { find: find, requireLoyalty: requireLoyalty, addPoints: addPoints, redeem: redeem };
+  function applyCheckoutEffects(orderId, clientId, total, rewardId) {
+    if (!clientId) return { points: null, reward: null };
+    if (!orderId) throw new Error('Identifiant de commande obligatoire pour la fidélité.');
+    if (rewardId) return { points: null, reward: LoyaltyTransactionV3.redeem(orderId, clientId, rewardId) };
+    return { points: LoyaltyTransactionV3.award(orderId, clientId, total), reward: null };
+  }
+
+  return { find: find, requireLoyalty: requireLoyalty, addPoints: addPoints, redeem: redeem, applyCheckoutEffects: applyCheckoutEffects };
 })();
