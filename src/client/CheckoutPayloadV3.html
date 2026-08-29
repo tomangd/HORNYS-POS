@@ -1,0 +1,21 @@
+<script>
+/** Build a canonical checkout payload from the existing POS state. */
+window.buildCheckoutPayloadV3 = function (state) {
+  state = state || {};
+  var articles = Array.isArray(state.articles) ? state.articles : [];
+  if (!articles.length) throw new Error('Le panier est vide.');
+  return {
+    orderId: state.orderId || null,
+    vendeur: state.vendeur || window.vendeurActif || '',
+    articles: articles.map(function (a) {
+      return { id: a.id, quantity: Number(a.quantity != null ? a.quantity : a.quantite || 0) };
+    }),
+    paiement: state.paiement || state.modePaiement || 'Cash',
+    clientId: state.clientId || null,
+    contractId: state.contractId || null,
+    employeeId: state.employeeId || null,
+    rewardId: state.rewardId || null,
+    ardoise: state.ardoise || null
+  };
+};
+</script>
