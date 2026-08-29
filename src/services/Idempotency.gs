@@ -6,9 +6,11 @@
 var Idempotency = (function () {
   'use strict';
 
+  var PREFIX = 'HORNYS_IDEMPOTENCY_';
+
   function key(operation, requestId) {
     if (!requestId) throw new Error('Identifiant de requête manquant.');
-    return 'HORNYS_IDEMPOTENCY_' + String(operation || 'operation') + '_' + String(requestId);
+    return PREFIX + String(operation || 'operation') + '_' + String(requestId);
   }
 
   function claim(operation, requestId, ttlSeconds) {
@@ -19,5 +21,26 @@ var Idempotency = (function () {
     return true;
   }
 
-  return { claim: claim };
+  function get(compositeKey) {
+    if (!compositeKey) return null;
+    var raw = CacheService.getScriptCache().get(String(compositeKey));
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function put(compositeKey, value, ttlSeconds) {
+    if (!compositeKey) throw new Error('Clé d’idempotence manquante.');
+    CacheService.getScriptCache().put(
+      String(compositeKey),
+      JSON.stringify(value),
+      Number(ttlSeconds) || 300
+    );
+    return value;
+  }
+
+  return { claim: claim, get: get, put: put };
 })();
