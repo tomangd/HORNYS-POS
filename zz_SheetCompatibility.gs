@@ -13,7 +13,14 @@ function obtenirFeuille(nom) {
     : requested;
 
   var sheets = SHEET.getSheets();
-  var byName = function (name) {
+  var exact = function (name) {
+    var target = String(name || '').trim();
+    if (!target) return null;
+    return sheets.find(function (sheet) {
+      return sheet.getName().trim() === target;
+    }) || null;
+  };
+  var insensitive = function (name) {
     var target = String(name || '').trim().toLowerCase();
     if (!target) return null;
     return sheets.find(function (sheet) {
@@ -21,8 +28,8 @@ function obtenirFeuille(nom) {
     }) || null;
   };
 
-  var mappedSheet = byName(mapped);
-  var requestedSheet = byName(requested);
+  var mappedSheet = exact(mapped) || insensitive(mapped);
+  var requestedSheet = exact(requested);
 
   if (mappedSheet && requestedSheet && mappedSheet.getSheetId() !== requestedSheet.getSheetId()) {
     var mappedRows = mappedSheet.getLastRow();
@@ -30,7 +37,7 @@ function obtenirFeuille(nom) {
     if (mappedRows <= 1 && requestedRows > 1) return requestedSheet;
   }
 
-  return mappedSheet || requestedSheet || null;
+  return mappedSheet || requestedSheet || insensitive(requested) || null;
 }
 
 /** Diagnostic helper: shows which physical sheet is used for the Articles key. */
