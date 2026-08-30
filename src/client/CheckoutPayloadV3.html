@@ -1,14 +1,36 @@
 <script>
-/** Build a canonical checkout payload from the existing POS state. */
+/**
+ * Build a canonical checkout payload from the existing POS state.
+ *
+ * The legacy caisse stores basket lines as:
+ *   { article: { id, ... }, nomComplet, prix, quantity }
+ * while V3 expects:
+ *   { id, quantity }
+ *
+ * Normalize both shapes here so the transactional backend remains strict.
+ */
 window.buildCheckoutPayloadV3 = function (state) {
   state = state || {};
   var articles = Array.isArray(state.articles) ? state.articles : [];
   if (!articles.length) throw new Error('Le panier est vide.');
+
   return {
     orderId: state.orderId || null,
     vendeur: state.vendeur || window.vendeurActif || '',
     articles: articles.map(function (a) {
-      return { id: a.id, quantity: Number(a.quantity != null ? a.quantity : a.quantite || 0) };
+      a = a || {};
+      var legacyArticle = a.article || {};
+      var id = a.id || a.articleId || a.produitId || legacyArticle.id;
+      var quantity = a.quantity != null ? a.quantity : a.quantite;
+
+      if (id === undefined || id === null || String(id).trim() === '') {
+        throw new Error('Un article du panier ne possède pas d’identifiant.');
+      }
+
+      return {
+        id: id,
+        quantity: Number(quantity || 0)
+      };
     }),
     paiement: state.paiement || state.modePaiement || 'Cash',
     clientId: state.clientId || null,
