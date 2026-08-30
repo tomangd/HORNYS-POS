@@ -27,7 +27,8 @@ var PaymentServiceV3 = (function () {
     if (amount <= 0) throw new Error('Le total de la vente doit être supérieur à 0.');
     if (method === 'Fidelite') {
       if (!vente.clientId) throw new Error('Un compte client est obligatoire pour la fidélité.');
-      if (!vente.rewardId) throw new Error('Une récompense est obligatoire pour un paiement fidélité.');
+      // La récompense est facultative : un client peut payer en fidélité
+      // sans utiliser de récompense sur cette vente.
     }
     if (method === 'Contrat' && !vente.contractId) throw new Error('Un contrat est obligatoire pour ce mode de paiement.');
     // Facture is an independent settlement mode; a client is optional.
