@@ -17,6 +17,10 @@ function executerSmokeTestsV3() {
   test('Payment: Espèces alias', function () { if (PaymentServiceV3.normalize('Espèces') !== 'Cash') throw new Error('Alias incorrect.'); });
   test('Payment: Carte alias', function () { if (PaymentServiceV3.normalize('CB') !== 'Carte') throw new Error('Alias incorrect.'); });
   test('Payment: Fidélité alias', function () { if (PaymentServiceV3.normalize('Fidélité') !== 'Fidelite') throw new Error('Alias incorrect.'); });
+  test('Payment: Fidélité sans récompense autorisée', function () {
+    var result = PaymentServiceV3.validateSale({ paiement: 'Fidelite', clientId: 'CLIENT-1' }, 10);
+    if (result.method !== 'Fidelite' || result.total !== 10) throw new Error('Paiement fidélité sans récompense refusé.');
+  });
   expectThrow('Payment: mode inconnu', function () { PaymentServiceV3.normalize('Bitcoin'); });
 
   test('Cart: fusion des lignes identiques', function () {
