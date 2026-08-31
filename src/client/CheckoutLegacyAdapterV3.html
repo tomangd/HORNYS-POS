@@ -1,0 +1,16 @@
+<script>
+/** Adapter for legacy caisse code: migrate one submit call at a time. */
+(function () {
+  'use strict';
+  window.POSCheckoutLegacyAdapterV3 = function (state, onSuccess, onError) {
+    try {
+      var payload = buildCheckoutPayloadV3(state);
+      return POSCheckoutV3.submit(payload, onSuccess, onError);
+    } catch (error) {
+      if (typeof onError === 'function') onError(error);
+      else if (typeof afficherStatus === 'function') afficherStatus(error.message || 'Encaissement invalide.', 'error');
+      return false;
+    }
+  };
+})();
+</script>

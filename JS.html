@@ -818,6 +818,9 @@
   }
 
   function ajouterAuPanier(article, variants = {}) {
+    console.log("[PANIER] article reçu:", JSON.stringify(article));
+    console.log("[PANIER] variants:", JSON.stringify(variants));
+
     const varStr =
       Object.keys(variants).length > 0
         ? ` (${Object.entries(variants)
@@ -827,7 +830,8 @@
     const nomComplet = article.nom + varStr;
     const existing = panier.find(
       (item) =>
-        item.article.id === article.id && item.nomComplet === nomComplet,
+        String(item.id) === String(article.id) &&
+        item.nomComplet === nomComplet,
     );
 
     if (existing) {
@@ -835,7 +839,13 @@
         return afficherStatus("Stock insuffisant", "error");
       existing.quantity += 1;
     } else {
-      panier.push({ article, nomComplet, prix: article.prix, quantity: 1 });
+      panier.push({
+        id: article.id,
+        article,
+        nomComplet,
+        prix: article.prix,
+        quantity: 1,
+      });
     }
     mettreAJourPanier();
   }
@@ -2053,8 +2063,7 @@
   // --- FACTURATION ---
   function chargerFactures() {
     const body = document.getElementById("facturesTableBody");
-    if (body)
-      body.innerHTML = '<tr><td colspan="8">Chargement...</td></tr>';
+    if (body) body.innerHTML = '<tr><td colspan="8">Chargement...</td></tr>';
     google.script.run
       .withSuccessHandler((factures) => {
         facturesData = Array.isArray(factures) ? factures : [];

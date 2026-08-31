@@ -1,0 +1,28 @@
+<script>
+/** V3 checkout bridge. Existing caisse can call this without knowing server internals. */
+(function () {
+  'use strict';
+  window.POSCheckoutV3 = {
+    submit: function (payload, onSuccess, onError) {
+      if (!window.POSPaymentGuardV3 || !POSPaymentGuardV3.lock()) return false;
+      var id = payload && payload.orderId ? payload.orderId : null;
+      if (!id) {
+        id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'POS-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        payload = Object.assign({}, payload, { orderId: id });
+      }
+      google.script.run
+        .withSuccessHandler(function (result) {
+          POSPaymentGuardV3.unlock();
+          if (typeof onSuccess === 'function') onSuccess(result);
+        })
+        .withFailureHandler(function (error) {
+          POSPaymentGuardV3.unlock();
+          if (typeof onError === 'function') onError(error);
+          else if (typeof afficherStatus === 'function') afficherStatus(error && error.message || 'Échec de l’encaissement.', 'error');
+        })
+        .enregistrerVenteCheckoutV3(payload);
+      return true;
+    }
+  };
+})();
+</script>

@@ -1,0 +1,27 @@
+<script>
+/** HORNYS-POS V3 — drop-in payment guard for the existing caisse. */
+(function () {
+  'use strict';
+  window.POSPaymentGuardV3 = {
+    locked: false,
+    lock: function () {
+      if (this.locked || window.encaissementEnCours === true) return false;
+      this.locked = true;
+      window.encaissementEnCours = true;
+      document.querySelectorAll('[data-payment-submit], .btn-payer, #btnEncaisser').forEach(function (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+      });
+      return true;
+    },
+    unlock: function () {
+      this.locked = false;
+      window.encaissementEnCours = false;
+      document.querySelectorAll('[data-payment-submit], .btn-payer, #btnEncaisser').forEach(function (button) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+      });
+    }
+  };
+})();
+</script>

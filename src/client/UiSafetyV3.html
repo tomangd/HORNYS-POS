@@ -1,0 +1,29 @@
+<script>
+/** HORNYS-POS V3 — shared UI safety helpers. */
+(function () {
+  'use strict';
+  window.POSUiV3 = {
+    escape: function (value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
+        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char];
+      });
+    },
+    money: function (value, currency) {
+      var amount = Number(value);
+      if (!isFinite(amount)) amount = 0;
+      return amount.toFixed(2) + ' ' + (currency || '€');
+    },
+    setBusy: function (element, busy, label) {
+      if (!element) return;
+      element.disabled = !!busy;
+      element.setAttribute('aria-busy', busy ? 'true' : 'false');
+      if (busy && label) element.dataset.originalLabel = element.textContent;
+      if (busy && label) element.textContent = label;
+      if (!busy && element.dataset.originalLabel) {
+        element.textContent = element.dataset.originalLabel;
+        delete element.dataset.originalLabel;
+      }
+    }
+  };
+})();
+</script>

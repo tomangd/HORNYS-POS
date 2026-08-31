@@ -2561,6 +2561,57 @@ function sauvegarderContratUI(contratObj, vendeurId) {
 function enregistrerVenteFormule(venteJSON) {
   const vente =
     typeof venteJSON === "string" ? JSON.parse(venteJSON) : venteJSON;
+
+  // ============================================
+  // MIGRATION V3 DEFINITIVE
+  // ============================================
+  // Le frontend historique fournit :
+  //   { article: { id, ... }, quantity, ... }
+  // Le moteur transactionnel V3 attend :
+  //   { id, quantity, ... }
+  //
+  // On conserve le nom de cette fonction pour compatibilité
+  // avec l'ancien frontend, mais toute nouvelle vente passe
+  // désormais par le moteur transactionnel V3.
+  const payloadV3 = {
+    orderId:
+      vente.orderId ||
+      ("POS-" + Date.now() + "-" + Utilities.getUuid().slice(0, 8)),
+    vendeur: vente.vendeur,
+    paiement: vente.paiement || "Cash",
+    clientId: vente.clientId || null,
+    contractId: vente.contractId || null,
+    employeeId: vente.employeeId || null,
+    rewardId: vente.rewardId || null,
+    ardoise: vente.ardoise || null,
+    articles: (vente.articles || []).map(function (item) {
+      item = item || {};
+      var article = item.article || {};
+      var id =
+        item.id ??
+        item.articleId ??
+        item.produitId ??
+        article.id;
+
+      if (id === undefined || id === null || String(id).trim() === "") {
+        throw new Error("Un article du panier ne possède pas d'identifiant.");
+      }
+
+      var quantity =
+        item.quantity !== undefined
+          ? item.quantity
+          : item.quantite;
+
+      return {
+        id: id,
+        quantity: Math.max(1, Math.floor(Number(quantity) || 0)),
+        nom: item.nomComplet || article.nom || "",
+        prix: item.prix ?? article.prix ?? null
+      };
+    })
+  };
+
+  return enregistrerVenteCheckoutV3(payloadV3);
   if (!vente || !vente.vendeur || !vente.articles || !vente.articles.length)
     throw new Error("Vendeur et commande obligatoires.");
   verifierPermission(vente.vendeur, "caisse");
