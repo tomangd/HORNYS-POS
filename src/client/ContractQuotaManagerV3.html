@@ -2,73 +2,38 @@
 /** HORNYS-POS V3 — contract quotas UI. */
 (function () {
   'use strict';
-  var state = { contractId: null, companyId: null, employeeId: null, rules: [] };
-  function esc(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function modal_() { return document.getElementById('contractQuotaModalV3'); }
-  function articleName_(id) { var a=(window.articlesData||[]).find(function(x){return String(x.id)===String(id);}); return a ? (a.nom||a.name||('Article #'+id)) : ('Article #'+id); }
-  function open_(contractId, companyId) {
-    if (!contractId) { if (typeof afficherStatus === 'function') afficherStatus('Enregistrez d’abord le contrat avant de définir ses quotas.', 'error'); return; }
-    state.contractId=contractId; state.companyId=companyId || null; state.employeeId=null; state.rules=[];
-    var m=modal_(); if(!m) return;
-    m.classList.remove('hidden');
-    var employeeSelect=document.getElementById('cqaEmployee');
-    employeeSelect.innerHTML='<option value="">Chargement des employés…</option>';
-    google.script.run.withSuccessHandler(function(list){
-      employeeSelect.innerHTML='<option value="">Sélectionner un employé</option>'+(list||[]).filter(function(e){return String(e.status||'ACTIF').toUpperCase()==='ACTIF';}).map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name)+' — '+esc(e.identifier)+'</option>';}).join('');
-      render_();
-    }).withFailureHandler(function(e){employeeSelect.innerHTML='<option value="">Impossible de charger les employés</option>'; if(typeof afficherStatus==='function') afficherStatus(e.message||'Erreur employés','error');}).lireEmployes(companyId);
+  var state={contractId:null,companyId:null,employeeId:null,rules:[]};
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function articles_(){return typeof articlesData!=='undefined'&&Array.isArray(articlesData)?articlesData:[];}
+  function vendeur_(){return typeof vendeurActif!=='undefined'?vendeurActif:null;}
+  function contractEdition_(){return typeof contratEnEditionId!=='undefined'?contratEnEditionId:null;}
+  function modal_(){return document.getElementById('contractQuotaModalV3');}
+  function open_(contractId,companyId){
+    if(!contractId){if(typeof afficherStatus==='function')afficherStatus('Enregistrez d’abord le contrat avant de définir ses quotas.','error');return;}
+    state.contractId=contractId;state.companyId=companyId||null;state.employeeId=null;state.rules=[];
+    var m=modal_();if(!m)return;m.classList.remove('hidden');
+    var select=document.getElementById('cqaEmployee');select.innerHTML='<option value="">Chargement des employés…</option>';
+    google.script.run.withSuccessHandler(function(list){select.innerHTML='<option value="">Sélectionner un employé</option>'+(list||[]).filter(function(e){return String(e.status||'ACTIF').toUpperCase()==='ACTIF';}).map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name)+' — '+esc(e.identifier)+'</option>';}).join('');render_();}).withFailureHandler(function(e){select.innerHTML='<option value="">Impossible de charger les employés</option>';if(typeof afficherStatus==='function')afficherStatus(e.message||'Erreur employés','error');}).lireEmployes(companyId);
   }
-  function render_() {
-    var box=document.getElementById('cqaRules');
-    var employeeId=document.getElementById('cqaEmployee').value;
-    state.employeeId=employeeId;
+  function render_(){
+    var box=document.getElementById('cqaRules'),employeeId=document.getElementById('cqaEmployee').value;state.employeeId=employeeId;
     if(!employeeId){box.innerHTML='<div style="color:#9ca3af;padding:10px 0">Sélectionnez un employé pour définir ses articles pris en charge et ses quotas.</div>';return;}
-    var rules=state.rules||[];
-    var html='<div style="display:grid;gap:8px">';
-    (window.articlesData||[]).filter(function(a){return a && (a.id!=null);}).forEach(function(a){
-      var r=rules.find(function(x){return String(x.articleId)===String(a.id);});
-      var enabled=!!r;
-      html+='<div class="cqa-row" data-article="'+esc(a.id)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 90px 130px 80px;gap:8px;align-items:center;padding:9px;border:1px solid #2d313f;border-radius:7px">'+
-        '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="cqa-enabled" '+(enabled?'checked':'')+'> <span>'+esc(a.nom||a.name||a.id)+'</span></label>'+
-        '<input class="form-control cqa-quota" type="number" min="0" step="1" value="'+(enabled?esc(r.quota):'0')+'" '+(enabled?'':'disabled')+'>'+
-        '<select class="form-control cqa-period" '+(enabled?'':'disabled')+'><option value="DAY" '+(enabled&&r.period==='DAY'?'selected':'')+'>Par jour</option><option value="WEEK" '+(enabled&&r.period==='WEEK'?'selected':'')+'>Par semaine</option></select>'+ 
-        '<span style="font-size:11px;color:#9ca3af">'+(enabled?'Pris en charge':'Non pris en charge')+'</span></div>';
-    });
-    html+='</div>'; box.innerHTML=html;
-    box.querySelectorAll('.cqa-enabled').forEach(function(cb){cb.addEventListener('change',function(){var row=cb.closest('.cqa-row');row.querySelector('.cqa-quota').disabled=!cb.checked;row.querySelector('.cqa-period').disabled=!cb.checked;});});
+    var rules=state.rules||[],html='<div style="display:grid;gap:8px">';
+    articles_().filter(function(a){return a&&a.id!=null;}).forEach(function(a){var r=rules.find(function(x){return String(x.articleId)===String(a.id);}),enabled=!!r;html+='<div class="cqa-row" data-article="'+esc(a.id)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 90px 130px 100px;gap:8px;align-items:center;padding:9px;border:1px solid #2d313f;border-radius:7px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="cqa-enabled" '+(enabled?'checked':'')+'> <span>'+esc(a.nom||a.name||a.id)+'</span></label><input class="form-control cqa-quota" type="number" min="0" step="1" value="'+(enabled?esc(r.quota):'0')+'" '+(enabled?'':'disabled')+'><select class="form-control cqa-period" '+(enabled?'':'disabled')+'><option value="DAY" '+(enabled&&r.period==='DAY'?'selected':'')+'>Par jour</option><option value="WEEK" '+(enabled&&r.period==='WEEK'?'selected':'')+'>Par semaine</option></select><span style="font-size:11px;color:#9ca3af">'+(enabled?'Pris en charge':'Non pris en charge')+'</span></div>';});
+    html+='</div>';box.innerHTML=html;box.querySelectorAll('.cqa-enabled').forEach(function(cb){cb.addEventListener('change',function(){var row=cb.closest('.cqa-row');row.querySelector('.cqa-quota').disabled=!cb.checked;row.querySelector('.cqa-period').disabled=!cb.checked;});});
   }
-  function loadRules_(){ if(!state.contractId||!state.employeeId)return; google.script.run.withSuccessHandler(function(r){state.rules=r||[];render_();}).withFailureHandler(function(e){if(typeof afficherStatus==='function') afficherStatus(e.message||'Erreur quotas','error');}).lireReglesQuotaContrat(state.contractId,state.employeeId); }
+  function loadRules_(){if(!state.contractId||!state.employeeId)return;google.script.run.withSuccessHandler(function(r){state.rules=r||[];render_();}).withFailureHandler(function(e){if(typeof afficherStatus==='function')afficherStatus(e.message||'Erreur quotas','error');}).lireReglesQuotaContrat(state.contractId,state.employeeId);}
   function save_(){
-    if(!state.contractId||!state.employeeId){if(typeof afficherStatus==='function') afficherStatus('Sélectionnez un employé.','error');return;}
-    var rules=[];
-    document.querySelectorAll('#cqaRules .cqa-row').forEach(function(row){
-      var cb=row.querySelector('.cqa-enabled'); if(!cb.checked)return;
-      var quota=Number(row.querySelector('.cqa-quota').value); if(!Number.isFinite(quota)||quota<0){throw new Error('Quota invalide.');}
-      rules.push({articleId:row.dataset.article,active:true,quota:Math.floor(quota),period:row.querySelector('.cqa-period').value});
-    });
-    var btn=document.getElementById('cqaSave');btn.disabled=true;btn.textContent='Enregistrement…';
-    google.script.run.withSuccessHandler(function(r){state.rules=r||rules;btn.disabled=false;btn.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function') afficherStatus('Quotas enregistrés.','success');render_();}).withFailureHandler(function(e){btn.disabled=false;btn.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function') afficherStatus(e.message||'Erreur lors de l’enregistrement.','error');}).sauvegarderReglesQuotaContrat(state.contractId,state.employeeId,rules,window.vendeurActif||null);
+    if(!state.contractId||!state.employeeId){if(typeof afficherStatus==='function')afficherStatus('Sélectionnez un employé.','error');return;}
+    var rules=[];try{document.querySelectorAll('#cqaRules .cqa-row').forEach(function(row){var cb=row.querySelector('.cqa-enabled');if(!cb.checked)return;var quota=Number(row.querySelector('.cqa-quota').value);if(!Number.isFinite(quota)||quota<0)throw new Error('Quota invalide.');rules.push({articleId:row.dataset.article,active:true,quota:Math.floor(quota),period:row.querySelector('.cqa-period').value});});}catch(e){if(typeof afficherStatus==='function')afficherStatus(e.message,'error');return;}
+    var btn=document.getElementById('cqaSave');btn.disabled=true;btn.textContent='Enregistrement…';google.script.run.withSuccessHandler(function(r){state.rules=r||rules;btn.disabled=false;btn.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus('Quotas enregistrés.','success');render_();}).withFailureHandler(function(e){btn.disabled=false;btn.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus(e.message||'Erreur lors de l’enregistrement.','error');}).sauvegarderReglesQuotaContrat(state.contractId,state.employeeId,rules,vendeur_());
   }
   function inject_(){
-    if(document.getElementById('contractQuotaModalV3'))return;
-    var m=document.createElement('div');m.id='contractQuotaModalV3';m.className='hidden modal-overlay';m.style.zIndex='2400';
-    m.innerHTML='<div class="modal-panel" style="width:min(900px,94vw);max-height:90vh;overflow:auto"><div class="page-toolbar"><div><h2 style="margin:0;color:#fff">Articles & quotas du contrat</h2><div style="font-size:12px;color:#9ca3af;margin-top:4px">Les règles sont indépendantes pour chaque employé.</div></div><button type="button" class="btn-action btn-cancel" id="cqaClose">Fermer</button></div><div class="form-group"><label>Employé</label><select id="cqaEmployee" class="form-control"><option value="">Sélectionner un employé</option></select></div><div id="cqaRules"></div><div class="modal-choice-actions" style="margin-top:14px"><button type="button" class="btn-action btn-confirm" id="cqaSave">Enregistrer les quotas</button></div></div>';
-    document.body.appendChild(m);document.getElementById('cqaClose').onclick=function(){m.classList.add('hidden');};document.getElementById('cqaEmployee').onchange=loadRules_;document.getElementById('cqaSave').onclick=save_;
+    if(document.getElementById('contractQuotaModalV3'))return;var m=document.createElement('div');m.id='contractQuotaModalV3';m.className='hidden modal-overlay';m.style.zIndex='2400';m.innerHTML='<div class="modal-panel" style="width:min(900px,94vw);max-height:90vh;overflow:auto"><div class="page-toolbar"><div><h2 style="margin:0;color:#fff">Articles & quotas du contrat</h2><div style="font-size:12px;color:#9ca3af;margin-top:4px">Les règles sont indépendantes pour chaque employé.</div></div><button type="button" class="btn-action btn-cancel" id="cqaClose">Fermer</button></div><div class="form-group"><label>Employé</label><select id="cqaEmployee" class="form-control"><option value="">Sélectionner un employé</option></select></div><div id="cqaRules"></div><div class="modal-choice-actions" style="margin-top:14px"><button type="button" class="btn-action btn-confirm" id="cqaSave">Enregistrer les quotas</button></div></div>';document.body.appendChild(m);document.getElementById('cqaClose').onclick=function(){m.classList.add('hidden');};document.getElementById('cqaEmployee').onchange=function(){loadRules_();};document.getElementById('cqaSave').onclick=save_;
   }
   window.ouvrirGestionQuotasContrat=function(contractId,companyId){inject_();open_(contractId,companyId);};
-  document.addEventListener('DOMContentLoaded',function(){inject_();});
-  // Add a configuration button to the existing contract form without requiring a second static modal in Index.html.
-  var observer=new MutationObserver(function(){
-    var form=document.getElementById('contratFormModal'); if(!form||form.dataset.cqaInjected)return;
-    form.dataset.cqaInjected='1';
-    var actions=form.querySelector('.modal-choice-actions'); if(!actions)return;
-    var b=document.createElement('button');b.type='button';b.className='btn-action';b.textContent='Articles & quotas';b.onclick=function(){
-      var id=window.contratEnEditionId || document.getElementById('contratIdInput')?.value || null;
-      var company=document.getElementById('contratCompanyInput');
-      if(!id){if(typeof afficherStatus==='function') afficherStatus('Enregistrez le contrat avant de configurer les quotas.','error');return;}
-      ouvrirGestionQuotasContrat(id,company&&company.value);
-    };actions.insertBefore(b,actions.firstChild);
-  });
+  document.addEventListener('DOMContentLoaded',inject_);
+  var observer=new MutationObserver(function(){var form=document.getElementById('contratFormModal');if(!form||form.dataset.cqaInjected)return;form.dataset.cqaInjected='1';var actions=form.querySelector('.modal-choice-actions');if(!actions)return;var b=document.createElement('button');b.type='button';b.className='btn-action';b.textContent='Articles & quotas';b.onclick=function(){var id=contractEdition_()||((document.getElementById('contratIdInput')||{}).value)||null;var company=document.getElementById('contratCompanyInput');if(!id){if(typeof afficherStatus==='function')afficherStatus('Enregistrez le contrat avant de configurer les quotas.','error');return;}window.ouvrirGestionQuotasContrat(id,company&&company.value);};actions.insertBefore(b,actions.firstChild);});
   observer.observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
