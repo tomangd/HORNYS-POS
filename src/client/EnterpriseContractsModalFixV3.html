@@ -2,14 +2,9 @@
 /**
  * HORNYS-POS V3 — Enterprise contract selector hardening.
  *
- * The caisse used to render the contract selector only from the initial
- * `contratsData` snapshot and required two exact status fields. This makes the
- * modal appear empty when the frontend snapshot is stale or when the sheet
- * contains a boolean/variant status representation.
- *
- * The selector now refreshes the authoritative contract list from Apps Script
- * every time it is opened, normalizes the active flag, and falls back to the
- * already-loaded frontend data if the refresh fails.
+ * Refresh the authoritative contract list whenever the selector is opened,
+ * normalize active/status representations, and fall back to the frontend cache
+ * if the server refresh fails.
  */
 (function () {
   'use strict';
@@ -50,18 +45,15 @@
     var container = document.getElementById('contratSelectionList');
     if (!modal || !container) return;
 
-    var activeContracts = normalizeContracts(list).filter(isActiveContract);
-    window.contratsData = activeContracts.concat(
-      normalizeContracts(list).filter(function (contract) {
-        return !isActiveContract(contract);
-      })
-    );
+    var normalized = normalizeContracts(list);
+    var activeContracts = normalized.filter(isActiveContract);
+    window.contratsData = normalized;
 
     if (!activeContracts.length) {
       container.innerHTML =
         '<div style="padding:14px;color:#9ca3af;line-height:1.5">' +
         '<strong style="color:#fff">Aucun contrat entreprise actif.</strong><br>' +
-        '<span>Vérifiez que le contrat possède le statut ACTIF dans l’onglet CONTRATS.</span>' +
+        '<span>Vérifiez le statut du contrat dans l’onglet CONTRATS.</span>' +
         '</div>';
       modal.classList.remove('hidden');
       return;
@@ -115,8 +107,7 @@
 
     google.script.run
       .withSuccessHandler(function (contracts) {
-        window.contratsData = normalizeContracts(contracts);
-        renderContracts(window.contratsData);
+        renderContracts(contracts);
       })
       .withFailureHandler(function (error) {
         console.error('Erreur chargement contrats entreprise', error);
@@ -133,4 +124,3 @@
   };
 })();
 </script>
-<?!= include('src/client/EnterpriseContractsModalFixV3'); ?>
