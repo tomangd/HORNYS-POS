@@ -1,8 +1,3 @@
---
-  function mettreAJourDashboard.*?\n  function remplirTableauContrats',js,re.S)
-if not m: raise SystemExit('client block not found')
-js=js[:m.start()]+client+js[m.end():]
-
 ui = r'''      <!-- PAGE 2 : DASHBOARD -->
       <div id="page-dashboard" class="page full-width">
         <div class="section" style="height:100%">
@@ -42,3 +37,13 @@ ui = r'''      <!-- PAGE 2 : DASHBOARD -->
       </div>
 
       <!-- PAGE 3 : CONTRATS -->'''
+m=re.search(r'      <!-- PAGE 2 : DASHBOARD -->.*?      <!-- PAGE 3 : CONTRATS -->',index,re.S)
+if not m: raise SystemExit('index dashboard block not found')
+index=index[:m.start()]+ui+index[m.end():]
+
+code_path.write_text(code,encoding='utf-8');js_path.write_text(js,encoding='utf-8');index_path.write_text(index,encoding='utf-8')
+assert code.count('function obtenirStatistiquesDashboard')==1
+assert 'function sauvegarderChargeHebdomadaire' in code
+assert js.count('function mettreAJourDashboard')==1
+assert 'function enregistrerChargeDashboard' in js
+assert index.count('id="page-dashboard"')==1

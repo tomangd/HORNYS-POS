@@ -51,5 +51,3 @@ function supprimerChargeHebdomadaire(id,vendeurId){
   if(vendeurId)verifierPermission(vendeurId,"dashboard"); const s=assurerFeuilleAvecEntetes("CHARGES_HEBDOMADAIRES",["ID","Semaine début","Type","Libellé","Montant","Employé","Statut","Date création"]); if(!id||s.getLastRow()<2)throw new Error("Charge introuvable.");
   const rows=s.getRange(2,1,s.getLastRow()-1,8).getValues(),i=rows.findIndex(r=>String(r[0])===String(id)); if(i<0)throw new Error("Charge introuvable."); s.getRange(i+2,7).setValue("ANNULEE"); return obtenirChargesHebdomadaires(vendeurId,"all");
 }
-function obtenirStatistiquesDashboard(period,vendeurId){
-  if(vendeurId)verifierPermission(vendeurId,"dashboard"); initialiserStructureStatistiquesHebdomadaires(); const range=plageStatistiquesHebdomadaires_(period||"week"), sheet=obtenirFeuille("Ventes");
