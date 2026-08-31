@@ -27,4 +27,10 @@
   };
 })();
 </script>
-<?!= include('src/client/UiThemeV3'); ?>
+
+<!--
+  IMPORTANT: do not put <?!= include(...) ?> inside an included HTML file.
+  Apps Script evaluates scriptlets only in the root template. The previous
+  nested UiThemeV3 include was therefore rendered literally in the browser.
+  UiThemeV3 is loaded independently from the root template instead.
+-->
