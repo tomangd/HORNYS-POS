@@ -1,0 +1,407 @@
+<style>
+/* HORNYS-POS V3 — unified restaurant POS design system. */
+:root {
+  --pos-bg: #f3f4f6;
+  --pos-surface: #ffffff;
+  --pos-surface-soft: #f7f8fa;
+  --pos-surface-hover: #eef0f3;
+  --pos-sidebar: #2f3338;
+  --pos-sidebar-hover: #3a3f45;
+  --pos-sidebar-active: #ffffff;
+  --pos-text: #24272b;
+  --pos-muted: #72777e;
+  --pos-border: #dfe2e6;
+  --pos-border-strong: #c9cdd2;
+  --pos-primary: #1f6feb;
+  --pos-primary-hover: #185abc;
+  --pos-success: #168447;
+  --pos-success-soft: #eaf7ef;
+  --pos-danger: #c93636;
+  --pos-danger-soft: #fbecec;
+  --pos-warning: #b66a00;
+  --pos-warning-soft: #fff4df;
+  --pos-radius: 6px;
+  --pos-radius-sm: 4px;
+  --pos-control-h: 44px;
+  --pos-nav-size: 48px;
+  --pos-shadow: 0 1px 2px rgba(20, 24, 30, .06);
+  --pos-shadow-lg: 0 8px 24px rgba(20, 24, 30, .12);
+}
+
+body.theme-dark {
+  --pos-bg: #181b1f;
+  --pos-surface: #22262b;
+  --pos-surface-soft: #292e34;
+  --pos-surface-hover: #30363d;
+  --pos-sidebar: #111417;
+  --pos-sidebar-hover: #20252a;
+  --pos-sidebar-active: #ffffff;
+  --pos-text: #f0f1f2;
+  --pos-muted: #a4a9af;
+  --pos-border: #373d44;
+  --pos-border-strong: #4a5159;
+  --pos-primary: #4d91f7;
+  --pos-primary-hover: #76aafa;
+  --pos-success: #45b879;
+  --pos-success-soft: #193a28;
+  --pos-danger: #ef6868;
+  --pos-danger-soft: #401f1f;
+  --pos-warning: #e0a34a;
+  --pos-warning-soft: #3d301d;
+}
+
+/* ---------- Base ---------- */
+body {
+  background: var(--pos-bg) !important;
+  color: var(--pos-text) !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+  font-size: 14px !important;
+}
+
+button, input, select, textarea { font-family: inherit !important; }
+button { -webkit-appearance: none; appearance: none; }
+
+/* ---------- Navigation / shell ---------- */
+.sidebar {
+  width: 64px !important;
+  background: var(--pos-sidebar) !important;
+  border-right: 0 !important;
+  padding: 10px 8px !important;
+  gap: 6px !important;
+  box-shadow: 1px 0 0 rgba(0,0,0,.08) !important;
+}
+
+.nav-btn, .theme-btn, .logout-btn {
+  width: var(--pos-nav-size) !important;
+  height: var(--pos-nav-size) !important;
+  min-width: var(--pos-nav-size) !important;
+  min-height: var(--pos-nav-size) !important;
+  border: 0 !important;
+  border-radius: var(--pos-radius) !important;
+  background: transparent !important;
+  color: #b8bdc3 !important;
+  font-size: 19px !important;
+  transition: background .14s ease, color .14s ease, transform .14s ease !important;
+}
+.nav-btn:hover, .theme-btn:hover, .logout-btn:hover {
+  background: var(--pos-sidebar-hover) !important;
+  color: #fff !important;
+}
+.nav-btn.active {
+  background: var(--pos-sidebar-active) !important;
+  color: #25282c !important;
+  border: 0 !important;
+  box-shadow: var(--pos-shadow) !important;
+}
+.logout-btn { margin-top: auto !important; color: #e48a8a !important; }
+.logout-btn:hover { background: #4b2929 !important; color: #fff !important; }
+.theme-btn { margin-top: 6px !important; }
+
+.main-content { background: var(--pos-bg) !important; }
+.top-header {
+  height: 60px !important;
+  padding: 0 22px !important;
+  background: var(--pos-surface) !important;
+  border-bottom: 1px solid var(--pos-border) !important;
+  box-shadow: none !important;
+}
+.top-header__brand { min-width: 220px !important; }
+.top-header__logo { height: 34px !important; border-radius: 5px !important; }
+.top-header__meta { color: var(--pos-muted) !important; font-size: 12px !important; }
+.top-header__user { min-width: 220px !important; color: var(--pos-text) !important; }
+.top-header__label { color: var(--pos-muted) !important; }
+
+/* ---------- Pages and panels ---------- */
+.page {
+  top: 60px !important;
+  height: calc(100% - 60px) !important;
+  padding: 14px !important;
+  gap: 12px !important;
+  background: var(--pos-bg) !important;
+}
+.page.full-width.active { padding: 14px !important; }
+.section, .management-section {
+  background: var(--pos-surface) !important;
+  border: 1px solid var(--pos-border) !important;
+  border-radius: var(--pos-radius) !important;
+  box-shadow: var(--pos-shadow) !important;
+  padding: 16px !important;
+}
+
+h1 {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: var(--pos-text) !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 14px !important;
+  border-bottom: 1px solid var(--pos-border) !important;
+}
+h2 {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: var(--pos-muted) !important;
+  letter-spacing: .65px !important;
+  text-transform: uppercase !important;
+}
+
+.page-toolbar {
+  min-height: var(--pos-control-h) !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid var(--pos-border) !important;
+}
+
+/* ---------- Unified controls ---------- */
+.btn-select, .btn-action, .btn-table,
+.table-actions button,
+.management-section .data-table td > button {
+  min-height: var(--pos-control-h) !important;
+  height: var(--pos-control-h) !important;
+  padding: 0 14px !important;
+  border-radius: var(--pos-radius-sm) !important;
+  border: 1px solid var(--pos-border-strong) !important;
+  background: var(--pos-surface) !important;
+  color: var(--pos-text) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  box-shadow: none !important;
+  transition: background .14s ease, border-color .14s ease, color .14s ease, transform .08s ease !important;
+}
+.btn-select:hover, .btn-action:hover, .btn-table:hover,
+.table-actions button:hover,
+.management-section .data-table td > button:hover {
+  background: var(--pos-surface-hover) !important;
+  border-color: #aeb4ba !important;
+  color: var(--pos-text) !important;
+}
+.btn-select:active, .btn-action:active, .btn-table:active,
+.table-actions button:active { transform: translateY(1px) !important; }
+.btn-select.active {
+  background: var(--pos-primary) !important;
+  border-color: var(--pos-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 1px 2px rgba(31,111,235,.2) !important;
+}
+.btn-select.active:hover { background: var(--pos-primary-hover) !important; border-color: var(--pos-primary-hover) !important; }
+.btn-pay, .btn-confirm {
+  background: var(--pos-primary) !important;
+  border-color: var(--pos-primary) !important;
+  color: #fff !important;
+}
+.btn-pay:hover, .btn-confirm:hover { background: var(--pos-primary-hover) !important; border-color: var(--pos-primary-hover) !important; }
+.btn-pay:disabled, button:disabled {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+.btn-clear, .btn-cancel {
+  background: var(--pos-surface-soft) !important;
+  border: 1px solid var(--pos-border) !important;
+  color: var(--pos-text) !important;
+}
+
+/* Keep quantity controls compact because they are a single compound control. */
+.qty-btn { width: 34px !important; height: 36px !important; min-height: 36px !important; border: 0 !important; }
+.qty-val { width: 34px !important; line-height: 36px !important; }
+
+/* Generic standalone action buttons get the same visual height. */
+.section button:not(.qty-btn),
+.management-section button:not(.qty-btn),
+.modal-panel button:not(.qty-btn),
+.page-toolbar button:not(.qty-btn) {
+  min-height: var(--pos-control-h) !important;
+}
+
+/* ---------- Inputs ---------- */
+.form-control, input, select, textarea {
+  min-height: var(--pos-control-h) !important;
+  border: 1px solid var(--pos-border-strong) !important;
+  border-radius: var(--pos-radius-sm) !important;
+  background: var(--pos-surface) !important;
+  color: var(--pos-text) !important;
+  box-shadow: none !important;
+}
+.form-control { padding: 0 11px !important; }
+textarea.form-control, textarea { padding: 10px 11px !important; }
+.form-control:focus, input:focus, select:focus, textarea:focus {
+  outline: 0 !important;
+  border-color: var(--pos-primary) !important;
+  box-shadow: 0 0 0 2px rgba(31,111,235,.13) !important;
+}
+.form-group label {
+  color: var(--pos-muted) !important;
+  font-size: 11px !important;
+  letter-spacing: .45px !important;
+  margin-bottom: 6px !important;
+}
+
+/* ---------- Catalogue ---------- */
+.article-card {
+  min-height: 104px !important;
+  background: var(--pos-surface) !important;
+  border: 1px solid var(--pos-border) !important;
+  border-radius: var(--pos-radius) !important;
+  padding: 13px !important;
+  box-shadow: none !important;
+  transition: border-color .14s ease, background .14s ease, box-shadow .14s ease !important;
+}
+.article-card:hover {
+  background: var(--pos-surface-hover) !important;
+  border-color: var(--pos-border-strong) !important;
+  box-shadow: var(--pos-shadow) !important;
+}
+.article-nom { font-size: 13px !important; font-weight: 600 !important; color: var(--pos-text) !important; }
+.article-prix { font-size: 14px !important; color: var(--pos-primary) !important; }
+.article-stock { color: var(--pos-muted) !important; }
+
+/* ---------- Order / totals ---------- */
+.panier-item { padding: 12px 0 !important; border-bottom: 1px solid var(--pos-border) !important; }
+.panier-nom { color: var(--pos-text) !important; font-size: 13px !important; }
+.panier-prix { color: var(--pos-text) !important; font-weight: 700 !important; }
+.qty-control {
+  background: var(--pos-surface-soft) !important;
+  border: 1px solid var(--pos-border-strong) !important;
+  border-radius: var(--pos-radius-sm) !important;
+}
+.qty-btn:hover { background: var(--pos-surface-hover) !important; }
+.totaux-box {
+  background: var(--pos-surface-soft) !important;
+  border: 1px solid var(--pos-border) !important;
+  border-radius: var(--pos-radius) !important;
+  padding: 14px !important;
+}
+.total-line { color: var(--pos-muted) !important; }
+.total-line.final {
+  color: var(--pos-text) !important;
+  font-size: 20px !important;
+  border-top: 1px solid var(--pos-border) !important;
+}
+
+/* ---------- Tables ---------- */
+.data-table {
+  border: 1px solid var(--pos-border) !important;
+  border-radius: var(--pos-radius) !important;
+  overflow: hidden !important;
+  background: var(--pos-surface) !important;
+}
+.data-table th {
+  background: var(--pos-surface-soft) !important;
+  color: var(--pos-muted) !important;
+  border-bottom: 1px solid var(--pos-border) !important;
+  font-size: 10px !important;
+}
+.data-table td { border-bottom: 1px solid var(--pos-border) !important; color: var(--pos-text) !important; }
+.data-table tbody tr:hover { background: var(--pos-surface-hover) !important; }
+.table-actions { gap: 6px !important; }
+.table-actions button, .management-section .data-table td > button, .management-section .btn-table {
+  min-width: 92px !important;
+}
+
+/* ---------- Status pills: one canonical component everywhere ---------- */
+.status-pill, [class*="status-pill"],
+.badge-active, .badge-inactive, .status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 82px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid transparent !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+.status-pill.active, .badge-active, .status-badge.active {
+  background: var(--pos-success-soft) !important;
+  border-color: rgba(22,132,71,.18) !important;
+  color: var(--pos-success) !important;
+}
+.status-pill.inactive, .badge-inactive, .status-badge.inactive {
+  background: var(--pos-danger-soft) !important;
+  border-color: rgba(201,54,54,.16) !important;
+  color: var(--pos-danger) !important;
+}
+.status-pill.pending, .status-badge.pending {
+  background: var(--pos-warning-soft) !important;
+  border-color: rgba(182,106,0,.18) !important;
+  color: var(--pos-warning) !important;
+}
+
+/* ---------- Dashboard cards ---------- */
+.dashboard-stat {
+  background: var(--pos-surface) !important;
+  border: 1px solid var(--pos-border) !important;
+  border-radius: var(--pos-radius) !important;
+  box-shadow: var(--pos-shadow) !important;
+  padding: 16px !important;
+}
+.dashboard-stat-label { color: var(--pos-muted) !important; }
+.dashboard-stat-value { color: var(--pos-text) !important; font-size: 24px !important; }
+
+/* ---------- Alerts / feedback ---------- */
+.alert { border-radius: var(--pos-radius-sm) !important; font-size: 12px !important; }
+.alert.success { background: var(--pos-success-soft) !important; border-color: rgba(22,132,71,.18) !important; color: var(--pos-success) !important; }
+.alert.error { background: var(--pos-danger-soft) !important; border-color: rgba(201,54,54,.18) !important; color: var(--pos-danger) !important; }
+
+/* ---------- Modals ---------- */
+.modal-overlay { background: rgba(30,34,39,.48) !important; backdrop-filter: blur(2px) !important; }
+.modal-panel {
+  background: var(--pos-surface) !important;
+  border: 1px solid var(--pos-border) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--pos-shadow-lg) !important;
+  padding: 20px !important;
+}
+.modal-choice-actions { border-top: 1px solid var(--pos-border) !important; }
+
+/* ---------- Inline dark legacy blocks: normalize them ---------- */
+#ardoiseForm, #clientAccountInfo, #clientRewards,
+[id*="Info"], [id*="Form"] {
+  border-radius: var(--pos-radius-sm) !important;
+}
+
+/* ---------- Login / loading ---------- */
+#loadingScreen, #pinScreen { background: var(--pos-bg) !important; }
+#pinScreen > div {
+  background: var(--pos-surface) !important;
+  border: 1px solid var(--pos-border) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--pos-shadow-lg) !important;
+}
+#pinInput { background: var(--pos-surface-soft) !important; color: var(--pos-text) !important; }
+
+/* ---------- Mobile ---------- */
+.caisse-mobile-tab {
+  height: var(--pos-control-h) !important;
+  min-height: var(--pos-control-h) !important;
+  border-radius: var(--pos-radius-sm) !important;
+  border: 1px solid var(--pos-border-strong) !important;
+  background: var(--pos-surface) !important;
+  color: var(--pos-text) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+.caisse-mobile-tab.active { background: var(--pos-primary) !important; border-color: var(--pos-primary) !important; color: #fff !important; }
+.caisse-mobile-tab-badge { background: var(--pos-danger) !important; }
+
+@media (max-width: 900px) {
+  .sidebar { background: var(--pos-sidebar) !important; border-top: 0 !important; }
+  .nav-btn, .theme-btn, .logout-btn { width: 42px !important; height: 42px !important; min-width: 42px !important; min-height: 42px !important; }
+  .top-header { height: 58px !important; }
+  .page, .page.full-width { top: 58px !important; height: calc(100% - 122px) !important; padding: 10px !important; }
+  .section { padding: 13px !important; }
+  .article-card { min-height: 82px !important; }
+}
+
+/* Canonical utility classes for future pages/components. */
+.pos-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: var(--pos-control-h); }
+.pos-card { background: var(--pos-surface); border: 1px solid var(--pos-border); border-radius: var(--pos-radius); box-shadow: var(--pos-shadow); }
+.pos-status { display: inline-flex; align-items: center; justify-content: center; min-width: 82px; height: 26px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+</style>
