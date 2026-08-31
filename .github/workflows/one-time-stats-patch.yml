@@ -1,0 +1,43 @@
+name: One-time weekly statistics patch
+
+on:
+  push:
+    paths:
+      - .github/workflows/one-time-stats-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build patch script
+        run: cat scripts/weekly_stats_patch.py.part1 scripts/weekly_stats_patch.py.part2 scripts/weekly_stats_patch.py.part3 > scripts/weekly_stats_patch.py
+      - name: Apply patch
+        run: python3 scripts/weekly_stats_patch.py
+      - name: Syntax checks
+        shell: bash
+        run: |
+          node --check Code.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          js = Path('JS.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script[^>]*>(.*?)</script>', js, flags=re.S|re.I)
+          if not scripts: raise SystemExit('No JS script found')
+          with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as f:
+              f.write('\n'.join(scripts)); path = f.name
+          subprocess.run(['node', '--check', path], check=True)
+          PY
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scripts/weekly_stats_patch.py scripts/weekly_stats_patch.py.part1 scripts/weekly_stats_patch.py.part2 scripts/weekly_stats_patch.py.part3
+          git add Code.js JS.html Index.html .github/workflows/one-time-stats-patch.yml scripts/
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: rendre les statistiques hebdomadaires pleinement fonctionnelles"
+          git push
