@@ -1,0 +1,136 @@
+<script>
+/**
+ * HORNYS-POS V3 — Enterprise contract selector hardening.
+ *
+ * The caisse used to render the contract selector only from the initial
+ * `contratsData` snapshot and required two exact status fields. This makes the
+ * modal appear empty when the frontend snapshot is stale or when the sheet
+ * contains a boolean/variant status representation.
+ *
+ * The selector now refreshes the authoritative contract list from Apps Script
+ * every time it is opened, normalizes the active flag, and falls back to the
+ * already-loaded frontend data if the refresh fails.
+ */
+(function () {
+  'use strict';
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function isActiveContract(contract) {
+    if (!contract) return false;
+    if (contract.actif === true) return true;
+    var status = String(contract.status || contract.statut || '')
+      .trim()
+      .toUpperCase();
+    return status === 'ACTIF' || status === 'ACTIVE';
+  }
+
+  function normalizeContracts(list) {
+    return (Array.isArray(list) ? list : [])
+      .filter(Boolean)
+      .map(function (contract) {
+        var copy = Object.assign({}, contract);
+        copy.actif = isActiveContract(copy);
+        copy.status = String(copy.status || copy.statut || '')
+          .trim()
+          .toUpperCase() || (copy.actif ? 'ACTIF' : 'SUSPENDU');
+        return copy;
+      });
+  }
+
+  function renderContracts(list) {
+    var modal = document.getElementById('contratModal');
+    var container = document.getElementById('contratSelectionList');
+    if (!modal || !container) return;
+
+    var activeContracts = normalizeContracts(list).filter(isActiveContract);
+    window.contratsData = activeContracts.concat(
+      normalizeContracts(list).filter(function (contract) {
+        return !isActiveContract(contract);
+      })
+    );
+
+    if (!activeContracts.length) {
+      container.innerHTML =
+        '<div style="padding:14px;color:#9ca3af;line-height:1.5">' +
+        '<strong style="color:#fff">Aucun contrat entreprise actif.</strong><br>' +
+        '<span>Vérifiez que le contrat possède le statut ACTIF dans l’onglet CONTRATS.</span>' +
+        '</div>';
+      modal.classList.remove('hidden');
+      return;
+    }
+
+    container.innerHTML = activeContracts.map(function (contract) {
+      var company = contract.companyName || contract.nomEntreprise ||
+        ('Entreprise #' + (contract.companyId || contract.clientId || contract.id));
+      var type = String(contract.type || 'CONTRAT').replace(/_/g, ' ');
+      var companyPercent = Number(contract.companyPercent);
+      var employeePercent = Number(contract.employeePercent);
+      var repartition = '';
+      if (!isNaN(companyPercent) || !isNaN(employeePercent)) {
+        repartition =
+          ' · Entreprise ' + (isNaN(companyPercent) ? 0 : companyPercent) +
+          '% · Employé ' + (isNaN(employeePercent) ? 0 : employeePercent) + '%';
+      }
+
+      return '<button type="button" class="btn-select contrat-option" ' +
+        'data-id="' + escapeHtml(contract.id) + '" ' +
+        'style="width:100%;margin-bottom:8px;text-align:left;">' +
+        '<strong>' + escapeHtml(company) + '</strong><br>' +
+        '<span>' + escapeHtml(type) + escapeHtml(repartition) + '</span>' +
+        '</button>';
+    }).join('');
+
+    container.querySelectorAll('.contrat-option').forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (typeof window.selectionnerContrat === 'function') {
+          window.selectionnerContrat(button.dataset.id);
+        }
+      });
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  window.ouvrirSelectionContrat = function () {
+    var modal = document.getElementById('contratModal');
+    var container = document.getElementById('contratSelectionList');
+    if (!modal || !container) return;
+
+    container.innerHTML =
+      '<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
+    modal.classList.remove('hidden');
+
+    if (!window.google || !google.script || !google.script.run) {
+      renderContracts(window.contratsData || []);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function (contracts) {
+        window.contratsData = normalizeContracts(contracts);
+        renderContracts(window.contratsData);
+      })
+      .withFailureHandler(function (error) {
+        console.error('Erreur chargement contrats entreprise', error);
+        var fallback = normalizeContracts(window.contratsData || []);
+        renderContracts(fallback);
+        if (!fallback.some(isActiveContract) && typeof afficherStatus === 'function') {
+          afficherStatus(
+            (error && error.message) || 'Impossible de charger les contrats entreprise.',
+            'error'
+          );
+        }
+      })
+      .contratsEntreprises();
+  };
+})();
+</script>
+<?!= include('src/client/EnterpriseContractsModalFixV3'); ?>
