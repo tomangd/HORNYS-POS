@@ -1,0 +1,25 @@
+<style>
+/* Global loading overlay: it must cover the entire viewport, including the bottom sidebar. */
+#loadingScreen,
+#loading-screen,
+.loading-screen,
+.global-loading-overlay,
+[data-loading-screen] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  z-index: 2147483647 !important;
+  isolation: isolate !important;
+}
+
+/* Navigation stays below the loading layer. */
+.sidebar,
+.top-header,
+.navbar,
+.app-navbar {
+  z-index: 5000 !important;
+}
+</style>
