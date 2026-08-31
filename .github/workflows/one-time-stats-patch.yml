@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build patch script
-        run: cat scripts/weekly_stats_patch.py.part1 scripts/weekly_stats_patch.py.part2 scripts/weekly_stats_patch.py.part3 > scripts/weekly_stats_patch.py
+        run: cat scripts/weekly_stats_patch.py.part1 scripts/weekly_stats_patch.py.part2 scripts/weekly_stats_patch.py.part3 scripts/weekly_stats_patch.py.part4 > scripts/weekly_stats_patch.py
       - name: Apply patch
         run: python3 scripts/weekly_stats_patch.py
       - name: Syntax checks
@@ -36,7 +36,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f scripts/weekly_stats_patch.py scripts/weekly_stats_patch.py.part1 scripts/weekly_stats_patch.py.part2 scripts/weekly_stats_patch.py.part3
+          rm -f scripts/weekly_stats_patch.py scripts/weekly_stats_patch.py.part1 scripts/weekly_stats_patch.py.part2 scripts/weekly_stats_patch.py.part3 scripts/weekly_stats_patch.py.part4
           git add Code.js JS.html Index.html .github/workflows/one-time-stats-patch.yml scripts/
           git diff --cached --quiet && exit 0
           git commit -m "feat: rendre les statistiques hebdomadaires pleinement fonctionnelles"
