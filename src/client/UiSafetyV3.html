@@ -28,9 +28,53 @@
 })();
 </script>
 
-<!--
-  IMPORTANT: do not put <?!= include(...) ?> inside an included HTML file.
-  Apps Script evaluates scriptlets only in the root template. The previous
-  nested UiThemeV3 include was therefore rendered literally in the browser.
-  UiThemeV3 is loaded independently from the root template instead.
--->
+<style>
+/* HORNYS-POS V3 core theme.
+   Kept directly in the root-loaded safety module because Apps Script does
+   not evaluate <?!= include(...) ?> recursively inside included HTML files. */
+:root {
+  --pos-bg:#f3f4f6; --pos-surface:#fff; --pos-surface-soft:#f7f8fa;
+  --pos-surface-hover:#eef0f3; --pos-sidebar:#2f3338; --pos-sidebar-hover:#3a3f45;
+  --pos-sidebar-active:#fff; --pos-text:#24272b; --pos-muted:#72777e;
+  --pos-border:#dfe2e6; --pos-border-strong:#c9cdd2; --pos-primary:#1f6feb;
+  --pos-primary-hover:#185abc; --pos-success:#168447; --pos-danger:#c93636;
+  --pos-radius:6px; --pos-radius-sm:4px; --pos-control-h:44px; --pos-nav-size:48px;
+  --pos-shadow:0 1px 2px rgba(20,24,30,.06);
+}
+body.theme-dark {
+  --pos-bg:#181b1f; --pos-surface:#22262b; --pos-surface-soft:#292e34;
+  --pos-surface-hover:#30363d; --pos-sidebar:#111417; --pos-sidebar-hover:#20252a;
+  --pos-text:#f0f1f2; --pos-muted:#a4a9af; --pos-border:#373d44;
+  --pos-border-strong:#4a5159; --pos-primary:#4d91f7; --pos-primary-hover:#76aafa;
+}
+body { background:var(--pos-bg)!important; color:var(--pos-text)!important; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif!important; }
+button,input,select,textarea { font-family:inherit!important; }
+.sidebar { width:64px!important; background:var(--pos-sidebar)!important; border-right:0!important; padding:10px 8px!important; gap:6px!important; box-shadow:1px 0 0 rgba(0,0,0,.08)!important; }
+.nav-btn,.theme-btn,.logout-btn { width:var(--pos-nav-size)!important; height:var(--pos-nav-size)!important; min-width:var(--pos-nav-size)!important; min-height:var(--pos-nav-size)!important; border:0!important; border-radius:var(--pos-radius)!important; background:transparent!important; color:#b8bdc3!important; }
+.nav-btn:hover,.theme-btn:hover,.logout-btn:hover { background:var(--pos-sidebar-hover)!important; color:#fff!important; }
+.nav-btn.active { background:var(--pos-sidebar-active)!important; color:#25282c!important; box-shadow:var(--pos-shadow)!important; }
+.logout-btn { margin-top:auto!important; color:#e48a8a!important; }
+.theme-btn { margin-top:6px!important; }
+.main-content { background:var(--pos-bg)!important; }
+.top-header { height:60px!important; padding:0 22px!important; background:var(--pos-surface)!important; border-bottom:1px solid var(--pos-border)!important; box-shadow:none!important; }
+.top-header__logo { height:34px!important; border-radius:5px!important; }
+.top-header__meta,.top-header__label { color:var(--pos-muted)!important; }
+.top-header__user { color:var(--pos-text)!important; }
+.page { top:60px!important; height:calc(100% - 60px)!important; padding:14px!important; gap:12px!important; background:var(--pos-bg)!important; }
+.page.full-width.active { padding:14px!important; }
+.section,.management-section { background:var(--pos-surface)!important; border:1px solid var(--pos-border)!important; border-radius:var(--pos-radius)!important; box-shadow:var(--pos-shadow)!important; padding:16px!important; }
+h1 { font-size:17px!important; font-weight:700!important; color:var(--pos-text)!important; border-bottom:1px solid var(--pos-border)!important; }
+h2 { color:var(--pos-muted)!important; }
+.btn-select,.btn-action,.btn-table,.table-actions button,.management-section .data-table td>button { min-height:var(--pos-control-h)!important; height:var(--pos-control-h)!important; padding:0 14px!important; border-radius:var(--pos-radius-sm)!important; border:1px solid var(--pos-border-strong)!important; background:var(--pos-surface)!important; color:var(--pos-text)!important; font-size:13px!important; font-weight:600!important; line-height:1!important; display:inline-flex!important; align-items:center!important; justify-content:center!important; gap:7px!important; }
+.btn-select:hover,.btn-action:hover,.btn-table:hover,.table-actions button:hover,.management-section .data-table td>button:hover { background:var(--pos-surface-hover)!important; border-color:#aeb4ba!important; color:var(--pos-text)!important; }
+.btn-select.active { background:var(--pos-primary)!important; border-color:var(--pos-primary)!important; color:#fff!important; }
+.btn-pay,.btn-confirm { background:var(--pos-primary)!important; border-color:var(--pos-primary)!important; color:#fff!important; }
+.btn-pay:hover,.btn-confirm:hover { background:var(--pos-primary-hover)!important; border-color:var(--pos-primary-hover)!important; }
+.btn-clear,.btn-cancel { background:var(--pos-surface-soft)!important; border-color:var(--pos-border)!important; color:var(--pos-text)!important; }
+button:disabled { opacity:.55!important; cursor:not-allowed!important; }
+.form-control,input,select,textarea { min-height:var(--pos-control-h)!important; border:1px solid var(--pos-border-strong)!important; border-radius:var(--pos-radius-sm)!important; background:var(--pos-surface)!important; color:var(--pos-text)!important; box-shadow:none!important; }
+.form-group label { color:var(--pos-muted)!important; font-size:11px!important; }
+.article-card { min-height:104px!important; background:var(--pos-surface)!important; border:1px solid var(--pos-border)!important; border-radius:var(--pos-radius)!important; padding:13px!important; box-shadow:none!important; }
+.article-card:hover { background:var(--pos-surface-hover)!important; border-color:var(--pos-border-strong)!important; }
+.status-pill { min-height:23px!important; }
+</style>
