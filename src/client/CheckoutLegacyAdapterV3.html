@@ -12,5 +12,88 @@
       return false;
     }
   };
+
+  /**
+   * Enterprise contract selector compatibility override.
+   *
+   * JS.html defines an older ouvrirSelectionContrat() after the V3 modules
+   * were introduced. That implementation only reads the initial frontend
+   * cache, which can be empty/stale. Refresh the authoritative server list
+   * whenever the selector is opened.
+   */
+  window.ouvrirSelectionContrat = function () {
+    var modal = document.getElementById('contratModal');
+    var container = document.getElementById('contratSelectionList');
+    if (!modal || !container) return;
+
+    container.innerHTML = '<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
+    modal.classList.remove('hidden');
+
+    var render = function (list) {
+      var contracts = Array.isArray(list) ? list.filter(Boolean) : [];
+      contracts = contracts.map(function (contract) {
+        var copy = Object.assign({}, contract);
+        var status = String(copy.status || copy.statut || '').trim().toUpperCase();
+        copy.actif = copy.actif === true || status === 'ACTIF' || status === 'ACTIVE';
+        copy.status = status || (copy.actif ? 'ACTIF' : 'SUSPENDU');
+        return copy;
+      }).filter(function (contract) { return contract.actif; });
+
+      if (!contracts.length) {
+        container.innerHTML = '<div style="padding:14px;color:#9ca3af;line-height:1.5"><strong style="color:#fff">Aucun contrat entreprise actif.</strong><br><span>Vérifiez le statut du contrat dans l’onglet CONTRATS.</span></div>';
+        return;
+      }
+
+      var escapeHtml = function (value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      };
+
+      container.innerHTML = contracts.map(function (contract) {
+        var company = contract.companyName || contract.nomEntreprise ||
+          ('Entreprise #' + (contract.companyId || contract.clientId || contract.id));
+        var type = String(contract.type || 'CONTRAT').replace(/_/g, ' ');
+        var companyPercent = Number(contract.companyPercent);
+        var employeePercent = Number(contract.employeePercent);
+        var repartition = (!isNaN(companyPercent) || !isNaN(employeePercent))
+          ? ' · Entreprise ' + (isNaN(companyPercent) ? 0 : companyPercent) + '% · Employé ' + (isNaN(employeePercent) ? 0 : employeePercent) + '%'
+          : '';
+        return '<button type="button" class="btn-select contrat-option" data-id="' + escapeHtml(contract.id) + '" style="width:100%;margin-bottom:8px;text-align:left;">' +
+          '<strong>' + escapeHtml(company) + '</strong><br><span>' + escapeHtml(type) + escapeHtml(repartition) + '</span></button>';
+      }).join('');
+
+      container.querySelectorAll('.contrat-option').forEach(function (button) {
+        button.addEventListener('click', function () {
+          if (typeof window.selectionnerContrat === 'function') window.selectionnerContrat(button.dataset.id);
+        });
+      });
+    };
+
+    if (!window.google || !google.script || !google.script.run) {
+      render(typeof contratsData !== 'undefined' ? contratsData : []);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function (contracts) {
+        if (typeof contratsData !== 'undefined') contratsData = Array.isArray(contracts) ? contracts : [];
+        render(contracts);
+      })
+      .withFailureHandler(function (error) {
+        console.error('Erreur chargement contrats entreprise', error);
+        render(typeof contratsData !== 'undefined' ? contratsData : []);
+        if (typeof contratsData === 'undefined' || !contratsData.some(function (contract) {
+          var status = String(contract && (contract.status || contract.statut) || '').trim().toUpperCase();
+          return contract && (contract.actif === true || status === 'ACTIF' || status === 'ACTIVE');
+        })) {
+          if (typeof afficherStatus === 'function') afficherStatus((error && error.message) || 'Impossible de charger les contrats entreprise.', 'error');
+        }
+      })
+      .contratsEntreprises();
+  };
 })();
 </script>
