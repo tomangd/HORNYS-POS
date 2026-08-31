@@ -12,88 +12,27 @@
       return false;
     }
   };
-
-  /**
-   * Enterprise contract selector compatibility override.
-   *
-   * JS.html defines an older ouvrirSelectionContrat() after the V3 modules
-   * were introduced. That implementation only reads the initial frontend
-   * cache, which can be empty/stale. Refresh the authoritative server list
-   * whenever the selector is opened.
-   */
   window.ouvrirSelectionContrat = function () {
-    var modal = document.getElementById('contratModal');
-    var container = document.getElementById('contratSelectionList');
-    if (!modal || !container) return;
-
-    container.innerHTML = '<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
-    modal.classList.remove('hidden');
-
-    var render = function (list) {
-      var contracts = Array.isArray(list) ? list.filter(Boolean) : [];
-      contracts = contracts.map(function (contract) {
-        var copy = Object.assign({}, contract);
-        var status = String(copy.status || copy.statut || '').trim().toUpperCase();
-        copy.actif = copy.actif === true || status === 'ACTIF' || status === 'ACTIVE';
-        copy.status = status || (copy.actif ? 'ACTIF' : 'SUSPENDU');
-        return copy;
-      }).filter(function (contract) { return contract.actif; });
-
-      if (!contracts.length) {
-        container.innerHTML = '<div style="padding:14px;color:#9ca3af;line-height:1.5"><strong style="color:#fff">Aucun contrat entreprise actif.</strong><br><span>Vérifiez le statut du contrat dans l’onglet CONTRATS.</span></div>';
-        return;
-      }
-
-      var escapeHtml = function (value) {
-        return String(value == null ? '' : value)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#039;');
-      };
-
-      container.innerHTML = contracts.map(function (contract) {
-        var company = contract.companyName || contract.nomEntreprise ||
-          ('Entreprise #' + (contract.companyId || contract.clientId || contract.id));
-        var type = String(contract.type || 'CONTRAT').replace(/_/g, ' ');
-        var companyPercent = Number(contract.companyPercent);
-        var employeePercent = Number(contract.employeePercent);
-        var repartition = (!isNaN(companyPercent) || !isNaN(employeePercent))
-          ? ' · Entreprise ' + (isNaN(companyPercent) ? 0 : companyPercent) + '% · Employé ' + (isNaN(employeePercent) ? 0 : employeePercent) + '%'
-          : '';
-        return '<button type="button" class="btn-select contrat-option" data-id="' + escapeHtml(contract.id) + '" style="width:100%;margin-bottom:8px;text-align:left;">' +
-          '<strong>' + escapeHtml(company) + '</strong><br><span>' + escapeHtml(type) + escapeHtml(repartition) + '</span></button>';
-      }).join('');
-
-      container.querySelectorAll('.contrat-option').forEach(function (button) {
-        button.addEventListener('click', function () {
-          if (typeof window.selectionnerContrat === 'function') window.selectionnerContrat(button.dataset.id);
-        });
-      });
-    };
-
-    if (!window.google || !google.script || !google.script.run) {
-      render(typeof contratsData !== 'undefined' ? contratsData : []);
-      return;
-    }
-
-    google.script.run
-      .withSuccessHandler(function (contracts) {
-        if (typeof contratsData !== 'undefined') contratsData = Array.isArray(contracts) ? contracts : [];
-        render(contracts);
-      })
-      .withFailureHandler(function (error) {
-        console.error('Erreur chargement contrats entreprise', error);
-        render(typeof contratsData !== 'undefined' ? contratsData : []);
-        if (typeof contratsData === 'undefined' || !contratsData.some(function (contract) {
-          var status = String(contract && (contract.status || contract.statut) || '').trim().toUpperCase();
-          return contract && (contract.actif === true || status === 'ACTIF' || status === 'ACTIVE');
-        })) {
-          if (typeof afficherStatus === 'function') afficherStatus((error && error.message) || 'Impossible de charger les contrats entreprise.', 'error');
-        }
-      })
-      .contratsEntreprises();
+    var modal=document.getElementById('contratModal'),container=document.getElementById('contratSelectionList');
+    if(!modal||!container)return;
+    container.innerHTML='<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>'; modal.classList.remove('hidden');
+    var esc=function(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');};
+    function render(list){var contracts=(Array.isArray(list)?list:[]).filter(Boolean).map(function(c){var x=Object.assign({},c),s=String(x.status||x.statut||'').trim().toUpperCase();x.actif=x.actif===true||s==='ACTIF'||s==='ACTIVE';return x;}).filter(function(c){return c.actif;});
+      if(!contracts.length){container.innerHTML='<div style="padding:14px;color:#9ca3af"><strong style="color:#fff">Aucun contrat entreprise actif.</strong><br>Vérifiez le statut du contrat dans l’onglet CONTRATS.</div>';return;}
+      container.innerHTML=contracts.map(function(c){var company=c.companyName||c.nomEntreprise||('Entreprise #'+(c.companyId||c.clientId||c.id));var type=String(c.type||'CONTRAT').replace(/_/g,' ');return '<button type="button" class="btn-select contrat-option" data-id="'+esc(c.id)+'" style="width:100%;margin-bottom:8px;text-align:left"><strong>'+esc(company)+'</strong><br><span>'+esc(type)+'</span></button>';}).join('');
+      container.querySelectorAll('.contrat-option').forEach(function(b){b.addEventListener('click',function(){if(typeof window.selectionnerContrat==='function')window.selectionnerContrat(b.dataset.id);});});}
+    google.script.run.withSuccessHandler(function(c){if(typeof contratsData!=='undefined')contratsData=Array.isArray(c)?c:[];render(c);}).withFailureHandler(function(e){render(typeof contratsData!=='undefined'?contratsData:[]);if(typeof afficherStatus==='function')afficherStatus((e&&e.message)||'Impossible de charger les contrats entreprise.','error');}).contratsEntreprises();
   };
+
+  /* Gestion des quotas : ce module est attaché ici car cet adaptateur est déjà chargé par Index.html. */
+  var quota={contractId:null,companyId:null,employeeId:null,rules:[]};
+  var qesc=function(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');};
+  function quotaModal(){if(document.getElementById('contractQuotaModalV3'))return;var m=document.createElement('div');m.id='contractQuotaModalV3';m.className='hidden modal-overlay';m.style.zIndex='2400';m.innerHTML='<div class="modal-panel" style="width:min(900px,94vw);max-height:90vh;overflow:auto"><div class="page-toolbar"><div><h2 style="margin:0;color:#fff">Articles & quotas du contrat</h2><div style="font-size:12px;color:#9ca3af;margin-top:4px">Configurez les articles pris en charge et leur quota par employé.</div></div><button type="button" class="btn-action btn-cancel" id="cqaClose">Fermer</button></div><div class="form-group"><label>Employé</label><select id="cqaEmployee" class="form-control"><option value="">Sélectionner un employé</option></select></div><div id="cqaRules"></div><div class="modal-choice-actions" style="margin-top:14px"><button type="button" class="btn-action btn-confirm" id="cqaSave">Enregistrer les quotas</button></div></div>';document.body.appendChild(m);document.getElementById('cqaClose').onclick=function(){m.classList.add('hidden');};document.getElementById('cqaEmployee').onchange=loadQuotaRules;document.getElementById('cqaSave').onclick=saveQuotaRules;}
+  function renderQuota(){var box=document.getElementById('cqaRules'),employee=document.getElementById('cqaEmployee').value;quota.employeeId=employee;if(!employee){box.innerHTML='<div style="color:#9ca3af;padding:10px 0">Sélectionnez un employé pour définir ses articles pris en charge et ses quotas.</div>';return;}var rules=quota.rules||[];var articles=typeof articlesData!=='undefined'&&Array.isArray(articlesData)?articlesData:[];box.innerHTML='<div style="display:grid;gap:8px">'+articles.filter(function(a){return a&&a.id!=null;}).map(function(a){var r=rules.find(function(x){return String(x.articleId)===String(a.id);}),on=!!r;return '<div class="cqa-row" data-article="'+qesc(a.id)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 90px 130px 100px;gap:8px;align-items:center;padding:9px;border:1px solid #2d313f;border-radius:7px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="cqa-enabled" '+(on?'checked':'')+'> <span>'+qesc(a.nom||a.name||a.id)+'</span></label><input class="form-control cqa-quota" type="number" min="0" step="1" value="'+(on?qesc(r.quota):'0')+'" '+(on?'':'disabled')+'><select class="form-control cqa-period" '+(on?'':'disabled')+'><option value="DAY" '+(on&&r.period==='DAY'?'selected':'')+'>Par jour</option><option value="WEEK" '+(on&&r.period==='WEEK'?'selected':'')+'>Par semaine</option></select><span style="font-size:11px;color:#9ca3af">'+(on?'Pris en charge':'Non pris en charge')+'</span></div>';}).join('')+'</div>';box.querySelectorAll('.cqa-enabled').forEach(function(cb){cb.onchange=function(){var row=cb.closest('.cqa-row');row.querySelector('.cqa-quota').disabled=!cb.checked;row.querySelector('.cqa-period').disabled=!cb.checked;};});}
+  function loadQuotaRules(){quota.employeeId=document.getElementById('cqaEmployee').value;if(!quota.contractId||!quota.employeeId){renderQuota();return;}google.script.run.withSuccessHandler(function(r){quota.rules=r||[];renderQuota();}).withFailureHandler(function(e){if(typeof afficherStatus==='function')afficherStatus(e.message||'Erreur lors du chargement des quotas.','error');}).lireReglesQuotaContrat(quota.contractId,quota.employeeId);}
+  function saveQuotaRules(){var employee=document.getElementById('cqaEmployee').value;if(!quota.contractId||!employee){if(typeof afficherStatus==='function')afficherStatus('Sélectionnez un employé.','error');return;}var rules=[];document.querySelectorAll('#cqaRules .cqa-row').forEach(function(row){if(!row.querySelector('.cqa-enabled').checked)return;var n=Number(row.querySelector('.cqa-quota').value);if(!Number.isFinite(n)||n<0)throw new Error('Quota invalide.');rules.push({articleId:row.dataset.article,active:true,quota:Math.floor(n),period:row.querySelector('.cqa-period').value});});var b=document.getElementById('cqaSave');b.disabled=true;b.textContent='Enregistrement…';google.script.run.withSuccessHandler(function(r){quota.rules=r||rules;b.disabled=false;b.textContent='Enregistrer les quotas';renderQuota();if(typeof afficherStatus==='function')afficherStatus('Quotas enregistrés.','success');}).withFailureHandler(function(e){b.disabled=false;b.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus(e.message||'Erreur lors de l’enregistrement.','error');}).sauvegarderReglesQuotaContrat(quota.contractId,employee, rules,typeof vendeurActif!=='undefined'?vendeurActif:null);}
+  window.ouvrirGestionQuotasContrat=function(id,company){if(!id){if(typeof afficherStatus==='function')afficherStatus('Enregistrez d’abord le contrat avant de définir ses quotas.','error');return;}quotaModal();quota.contractId=id;quota.companyId=company||null;quota.rules=[];var s=document.getElementById('cqaEmployee');s.innerHTML='<option value="">Chargement des employés…</option>';document.getElementById('contractQuotaModalV3').classList.remove('hidden');google.script.run.withSuccessHandler(function(list){s.innerHTML='<option value="">Sélectionner un employé</option>'+(list||[]).filter(function(e){return String(e.status||'ACTIF').toUpperCase()==='ACTIF';}).map(function(e){return '<option value="'+qesc(e.id)+'">'+qesc(e.name)+' — '+qesc(e.identifier)+'</option>';}).join('');renderQuota();}).withFailureHandler(function(e){s.innerHTML='<option value="">Impossible de charger les employés</option>';if(typeof afficherStatus==='function')afficherStatus(e.message||'Erreur employés.','error');}).lireEmployes(company);};
+  function bindQuotaButton(){var form=document.getElementById('contratFormModal');if(!form||form.dataset.quotaButtonBound==='1')return;var actions=form.querySelector('.modal-choice-actions');if(!actions)return;form.dataset.quotaButtonBound='1';var b=document.createElement('button');b.type='button';b.className='btn-action';b.textContent='Articles & quotas';b.onclick=function(){var id=null;try{id=typeof contratEnEditionId!=='undefined'?contratEnEditionId:null;}catch(e){}var input=document.getElementById('contratIdInput');if(!id&&input)id=input.value||null;var company=document.getElementById('contratCompanyInput');window.ouvrirGestionQuotasContrat(id,company?company.value:null);};actions.insertBefore(b,actions.firstChild);}
+  document.addEventListener('DOMContentLoaded',function(){quotaModal();bindQuotaButton();});new MutationObserver(bindQuotaButton).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
