@@ -609,132 +609,38 @@
 
       <!-- PAGE 2 : DASHBOARD -->
       <div id="page-dashboard" class="page full-width">
-        <div class="section" style="height: 100%">
-          <h1>Tableau de Bord & Statistiques</h1>
-          <div class="scrollable" style="padding-top: 10px">
-            <div
-              style="
-                display: flex;
-                justify-content: flex-end;
-                align-items: center;
-                gap: 8px;
-                margin-bottom: 16px;
-              "
-            >
-              <label
-                for="dashboardPeriod"
-                style="color: #9ca3af; font-size: 12px"
-                >Période</label
-              >
-              <select
-                id="dashboardPeriod"
-                class="form-control"
-                style="width: 180px"
-                onchange="chargerStatistiquesDashboard(this.value)"
-              >
-                <option value="today">Aujourd’hui</option>
-                <option value="7">7 derniers jours</option>
-                <option value="30" selected>30 derniers jours</option>
-                <option value="month">Mois en cours</option>
-                <option value="all">Depuis le début</option>
-              </select>
+        <div class="section" style="height:100%">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #2d313f;padding-bottom:12px;margin-bottom:16px">
+            <div><h1 style="margin:0;border:none;padding:0">Tableau de Bord & Statistiques</h1><div id="dashPeriodLabel" style="margin-top:5px;color:#9ca3af;font-size:12px">Semaine en cours</div></div>
+            <select id="dashboardPeriod" class="form-control" style="width:210px" onchange="chargerStatistiquesDashboard(this.value)"><option value="week" selected>Semaine en cours</option><option value="previous-week">Semaine précédente</option><option value="4-weeks">4 dernières semaines</option><option value="12-weeks">12 dernières semaines</option><option value="all">Depuis le début</option></select>
+          </div>
+          <div class="scrollable" style="padding-top:4px">
+            <div class="grid-2" style="margin-bottom:16px">
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Chiffre d'affaires</div><div id="dashTotalCA" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Résultat net</div><div id="dashResultatNet" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Nombre de ventes</div><div id="dashNbVentes" class="dashboard-stat-value">0</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Panier moyen</div><div id="dashPanierMoyen" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Marge nette</div><div id="dashMargeNette" class="dashboard-stat-value">0.0 %</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Charges totales</div><div id="dashChargesTotal" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Salaires</div><div id="dashSalaires" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Factures / achats</div><div id="dashFactures" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Autres charges</div><div id="dashAutresCharges" class="dashboard-stat-value">0.00€</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Stock critique</div><div id="dashStockCritique" class="dashboard-stat-value">0</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Meilleur vendeur</div><div id="dashMeilleurVendeur" class="dashboard-stat-value">-</div></div>
+              <div class="dashboard-stat"><div class="dashboard-stat-label">Article le plus vendu</div><div id="dashArticleTop" class="dashboard-stat-value">-</div></div>
             </div>
-            <div class="grid-2" style="margin-bottom: 20px">
-              <div
-                style="
-                  background: #232736;
-                  padding: 20px;
-                  border-radius: 6px;
-                  border: 1px solid #3f4455;
-                "
-              >
-                <div
-                  style="
-                    font-size: 12px;
-                    color: #9ca3af;
-                    text-transform: uppercase;
-                  "
-                >
-                  Chiffre d'Affaires Total
-                </div>
-                <div
-                  id="dashTotalCA"
-                  style="
-                    font-size: 24px;
-                    font-weight: 600;
-                    color: #34d399;
-                    margin-top: 8px;
-                  "
-                >
-                  0.00€
-                </div>
-              </div>
-              <div
-                style="
-                  background: #232736;
-                  padding: 20px;
-                  border-radius: 6px;
-                  border: 1px solid #3f4455;
-                "
-              >
-                <div
-                  style="
-                    font-size: 12px;
-                    color: #9ca3af;
-                    text-transform: uppercase;
-                  "
-                >
-                  Nombre de Ventes
-                </div>
-                <div
-                  id="dashNbVentes"
-                  style="
-                    font-size: 24px;
-                    font-weight: 600;
-                    color: #818cf8;
-                    margin-top: 8px;
-                  "
-                >
-                  0
-                </div>
-              </div>
-              <div class="dashboard-stat">
-                <div class="dashboard-stat-label">Panier moyen</div>
-                <div id="dashPanierMoyen" class="dashboard-stat-value">
-                  0.00€
-                </div>
-              </div>
-              <div class="dashboard-stat">
-                <div class="dashboard-stat-label">Meilleur vendeur</div>
-                <div id="dashMeilleurVendeur" class="dashboard-stat-value">
-                  -
-                </div>
-              </div>
-              <div class="dashboard-stat">
-                <div class="dashboard-stat-label">Meilleur employé contrat</div>
-                <div id="dashMeilleurEmploye" class="dashboard-stat-value">
-                  -
-                </div>
-              </div>
-              <div class="dashboard-stat">
-                <div class="dashboard-stat-label">Article le plus vendu</div>
-                <div id="dashArticleTop" class="dashboard-stat-value">-</div>
-              </div>
-              <div class="dashboard-stat">
-                <div class="dashboard-stat-label">Répartition paiements</div>
-                <div
-                  id="dashPaiements"
-                  class="dashboard-stat-value"
-                  style="font-size: 14px"
-                >
-                  -
-                </div>
-              </div>
+            <h2>Ajouter une charge hebdomadaire</h2>
+            <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:20px">
+              <div class="form-group" style="margin:0"><label>Type</label><select id="chargeTypeInput" class="form-control"><option value="SALAIRE">Salaire</option><option value="FACTURE">Facture / achat</option><option value="AUTRE">Autre charge</option></select></div>
+              <div class="form-group" style="margin:0"><label>Libellé</label><input id="chargeLabelInput" class="form-control" type="text" placeholder="Ex. Salaire Tom / Facture fournisseur"></div>
+              <div class="form-group" style="margin:0"><label>Montant</label><input id="chargeAmountInput" class="form-control" type="number" min="0.01" step="0.01" placeholder="0.00"></div>
+              <div class="form-group" style="margin:0"><label>Employé (optionnel)</label><input id="chargeEmployeeInput" class="form-control" type="text" placeholder="Nom / matricule"></div>
+              <button class="btn-action btn-pay" type="button" onclick="enregistrerChargeDashboard()">Ajouter</button>
             </div>
-            <h2>État des Stocks</h2>
-            <div id="dashStockContainer"></div>
-            <h2 style="margin-top: 20px">Historique des ventes</h2>
-            <div id="dashVentesContainer"></div>
+            <h2>Évolution hebdomadaire</h2><div id="dashWeeklyContainer" style="margin-bottom:20px"></div>
+            <h2>Charges de la période</h2><div id="dashChargesContainer" style="margin-bottom:20px"></div>
+            <h2>État des stocks</h2><div id="dashStockContainer" style="margin-bottom:20px"></div>
+            <h2>Historique des ventes</h2><div id="dashVentesContainer"></div>
           </div>
         </div>
       </div>

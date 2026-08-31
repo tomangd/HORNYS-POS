@@ -2194,85 +2194,19 @@
   }
 
   // --- DASHBOARD & CONTRATS UI ---
-  function mettreAJourDashboard(dash, ventes) {
-    document.getElementById("dashTotalCA").textContent = formaterMonnaie(
-      dash.totalCA,
-    );
-    document.getElementById("dashNbVentes").textContent = dash.nbVentes;
-    document.getElementById("dashPanierMoyen").textContent = formaterMonnaie(
-      dash.panierMoyen || 0,
-    );
-    document.getElementById("dashMeilleurVendeur").textContent =
-      dash.meilleurVendeur || "-";
-    document.getElementById("dashMeilleurEmploye").textContent =
-      dash.meilleurEmploye || "-";
-    document.getElementById("dashArticleTop").textContent = dash.articleTop
-      ? `${dash.articleTop} (${dash.articleTopQuantite || 0})`
-      : "-";
-    document.getElementById("dashPaiements").textContent = dash.paiements
-      ? Object.entries(dash.paiements)
-          .map(([name, count]) => `${name}: ${count}`)
-          .join(" · ") || "-"
-      : "-";
-
-    const stockContainer = document.getElementById("dashStockContainer");
-    stockContainer.innerHTML =
-      '<table class="data-table"><thead><tr><th>Article</th><th>Stock</th><th>Prix</th></tr></thead><tbody>';
-    articlesData.forEach((a) => {
-      stockContainer.querySelector("tbody").innerHTML +=
-        `<tr><td>${a.nom}</td><td>${a.stock}</td><td>${a.prix.toFixed(2)} ${deviseActuelle}</td></tr>`;
-    });
-    stockContainer.innerHTML += "</tbody></table>";
-
-    const ventesContainer = document.getElementById("dashVentesContainer");
-    if (!ventesContainer) return;
-    if (!ventes || !ventes.length) {
-      ventesContainer.innerHTML =
-        '<div style="padding:12px; color:#9ca3af;">Aucune vente enregistrée.</div>';
-      return;
-    }
-    ventesContainer.innerHTML =
-      '<table class="data-table"><thead><tr><th>ID</th><th>Date</th><th>Vendeur</th><th>Paiement</th><th>Total</th><th>Statut</th></tr></thead><tbody></tbody></table>';
-    const tbody = ventesContainer.querySelector("tbody");
-    ventes
-      .slice()
-      .reverse()
-      .forEach((vente) => {
-        const row = document.createElement("tr");
-        [
-          vente.id,
-          vente.date || "--",
-          vente.vendeur || "--",
-          vente.paiement || "--",
-          formaterMonnaie(vente.montantFinal),
-          vente.statut || "--",
-        ].forEach((value) => {
-          const cell = document.createElement("td");
-          cell.textContent = value;
-          row.appendChild(cell);
-        });
-        tbody.appendChild(row);
-      });
+  function dashboardMonnaie(v){ return formaterMonnaie(Number(v)||0); }
+  function escapeDashboardHtml(v){ return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
+  function mettreAJourDashboard(dash,ventes){
+    dash=dash||{}; const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    set("dashTotalCA",dashboardMonnaie(dash.totalCA));set("dashNbVentes",dash.nbVentes||0);set("dashPanierMoyen",dashboardMonnaie(dash.panierMoyen));set("dashMeilleurVendeur",dash.meilleurVendeur||"-");set("dashMeilleurEmploye",dash.meilleurEmploye||"-");set("dashArticleTop",dash.articleTop&&dash.articleTop!=="-"?`${dash.articleTop} (${dash.articleTopQuantite||0})`:"-");set("dashSalaires",dashboardMonnaie(dash.salaires));set("dashFactures",dashboardMonnaie(dash.factures));set("dashAutresCharges",dashboardMonnaie(dash.autresCharges));set("dashChargesTotal",dashboardMonnaie(dash.chargesTotal));set("dashResultatNet",dashboardMonnaie(dash.resultatNet));set("dashMargeNette",`${Number(dash.margeNette||0).toFixed(1)} %`);set("dashStockCritique",dash.stockCritique||0);set("dashPeriodLabel",dash.periodStart&&dash.periodEnd?`${dash.periodStart} → ${dash.periodEnd}`:"Toutes les périodes");
+    const sc=document.getElementById("dashStockContainer");if(sc)sc.innerHTML=`<table class="data-table"><thead><tr><th>Article</th><th>Stock</th><th>Prix</th></tr></thead><tbody>${articlesData.map(a=>`<tr><td>${escapeDashboardHtml(a.nom)}</td><td>${Number(a.stock)||0}</td><td>${dashboardMonnaie(a.prix)}</td></tr>`).join("")}</tbody></table>`;
+    const cc=document.getElementById("dashChargesContainer"),charges=Array.isArray(dash.charges)?dash.charges:[];if(cc)cc.innerHTML=charges.length?`<table class="data-table"><thead><tr><th>Semaine</th><th>Type</th><th>Libellé</th><th>Employé</th><th>Montant</th><th></th></tr></thead><tbody>${charges.map(c=>`<tr><td>${escapeDashboardHtml(c.semaineDebut||"-")}</td><td>${escapeDashboardHtml(c.type)}</td><td>${escapeDashboardHtml(c.libelle)}</td><td>${escapeDashboardHtml(c.employe||"-")}</td><td>${dashboardMonnaie(c.montant)}</td><td><button class="btn-select" type="button" onclick="supprimerChargeDashboard('${escapeDashboardHtml(c.id)}')">Supprimer</button></td></tr>`).join("")}</tbody></table>`:'<div style="padding:12px;color:#9ca3af">Aucune charge enregistrée pour cette période.</div>';
+    const wc=document.getElementById("dashWeeklyContainer"),weekly=Array.isArray(dash.weekly)?dash.weekly:[];if(wc)wc.innerHTML=weekly.length?`<table class="data-table"><thead><tr><th>Semaine</th><th>CA</th><th>Ventes</th><th>Charges</th><th>Résultat</th></tr></thead><tbody>${weekly.slice(-12).reverse().map(w=>`<tr><td>${escapeDashboardHtml(w.semaineDebut)}</td><td>${dashboardMonnaie(w.chiffreAffaires)}</td><td>${w.ventes}</td><td>${dashboardMonnaie(w.charges)}</td><td>${dashboardMonnaie(w.resultat)}</td></tr>`).join("")}</tbody></table>`:'<div style="padding:12px;color:#9ca3af">Aucune donnée hebdomadaire.</div>';
+    const vc=document.getElementById("dashVentesContainer");if(!vc)return;if(!ventes||!ventes.length){vc.innerHTML='<div style="padding:12px;color:#9ca3af">Aucune vente enregistrée sur cette période.</div>';return;}vc.innerHTML='<table class="data-table"><thead><tr><th>ID</th><th>Date</th><th>Vendeur</th><th>Paiement</th><th>Total</th><th>Statut</th></tr></thead><tbody></tbody></table>';const tb=vc.querySelector("tbody");ventes.slice().reverse().forEach(v=>{const tr=document.createElement("tr");[v.id,v.date||"--",v.vendeur||"--",v.paiement||"--",dashboardMonnaie(v.montantFinal),v.statut||"--"].forEach(x=>{const td=document.createElement("td");td.textContent=x;tr.appendChild(td);});tb.appendChild(tr);});
   }
-
-  function chargerStatistiquesDashboard(
-    period = "30",
-    afficherChargement = true,
-  ) {
-    if (afficherChargement)
-      afficherChargementAction("Chargement des statistiques...");
-    google.script.run
-      .withSuccessHandler((stats) => {
-        if (afficherChargement) masquerChargementAction();
-        mettreAJourDashboard(stats, stats.ventes || ventesData);
-      })
-      .withFailureHandler((error) => {
-        if (afficherChargement) masquerChargementAction();
-        afficherStatus(error.message || "Erreur statistiques.", "error");
-      })
-      .obtenirStatistiquesDashboard(period, vendeurActif || "");
-  }
-
+  function chargerStatistiquesDashboard(period="week",afficherChargement=true){if(afficherChargement)afficherChargementAction("Chargement des statistiques...");google.script.run.withSuccessHandler(stats=>{if(afficherChargement)masquerChargementAction();mettreAJourDashboard(stats,stats?.ventes||ventesData);}).withFailureHandler(error=>{if(afficherChargement)masquerChargementAction();afficherStatus(error?.message||"Erreur statistiques.","error");}).obtenirStatistiquesDashboard(period,vendeurActif||"");}
+  function enregistrerChargeDashboard(){const type=document.getElementById("chargeTypeInput")?.value||"AUTRE",libelle=document.getElementById("chargeLabelInput")?.value.trim()||"",montant=Number(document.getElementById("chargeAmountInput")?.value)||0,employe=document.getElementById("chargeEmployeeInput")?.value.trim()||"";if(!libelle)return afficherStatus("Le libellé est obligatoire.","error");if(montant<=0)return afficherStatus("Le montant doit être supérieur à 0.","error");afficherChargementAction("Enregistrement de la charge...");google.script.run.withSuccessHandler(()=>{masquerChargementAction();document.getElementById("chargeLabelInput").value="";document.getElementById("chargeAmountInput").value="";document.getElementById("chargeEmployeeInput").value="";chargerStatistiquesDashboard(document.getElementById("dashboardPeriod")?.value||"week",false);afficherStatus("Charge enregistrée.","success");}).withFailureHandler(e=>{masquerChargementAction();afficherStatus(e?.message||"Erreur charge.","error");}).sauvegarderChargeHebdomadaire({semaineDebut:null,type,libelle,montant,employe},vendeurActif||"");}
+  function supprimerChargeDashboard(id){if(!id||!confirm("Supprimer cette charge ?"))return;afficherChargementAction("Suppression de la charge...");google.script.run.withSuccessHandler(()=>{masquerChargementAction();chargerStatistiquesDashboard(document.getElementById("dashboardPeriod")?.value||"week",false);afficherStatus("Charge supprimée.","success");}).withFailureHandler(e=>{masquerChargementAction();afficherStatus(e?.message||"Erreur suppression charge.","error");}).supprimerChargeHebdomadaire(id,vendeurActif||"");}
   function remplirTableauContrats() {
     const tbody = document.getElementById("contratsTableBody");
     tbody.innerHTML = "";

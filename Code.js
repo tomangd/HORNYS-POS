@@ -2490,177 +2490,64 @@ function obtenirContratJSON(clientId) {
   return JSON.stringify({ id: null, reduction: 0, limite: null });
 }
 
-function obtenirStatistiquesDashboard(period, vendeurId) {
-  if (vendeurId) verifierPermission(vendeurId, "dashboard");
-  const sheet = obtenirFeuille("Ventes");
-  const now = new Date();
-  let start = null;
-  if (period === "today")
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === "7") start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  if (period === "30")
-    start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  if (period === "month")
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const parseDate = (value) => {
-    if (value instanceof Date) return value;
-    const raw = String(value || "").trim();
-    if (!raw) return null;
-    const fr = raw.match(
-      /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
-    );
-    if (fr) {
-      const [, day, month, year, hours = "0", minutes = "0", seconds = "0"] =
-        fr;
-      return new Date(
-        Number(year),
-        Number(month) - 1,
-        Number(day),
-        Number(hours),
-        Number(minutes),
-        Number(seconds),
-      );
-    }
-    const iso = raw.match(
-      /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
-    );
-    if (iso) {
-      const [, year, month, day, hours = "0", minutes = "0", seconds = "0"] =
-        iso;
-      return new Date(
-        Number(year),
-        Number(month) - 1,
-        Number(day),
-        Number(hours),
-        Number(minutes),
-        Number(seconds),
-      );
-    }
-    const dt = new Date(raw);
-    return Number.isNaN(dt.getTime()) ? null : dt;
-  };
-  const result = {
-    totalCA: 0,
-    nbVentes: 0,
-    panierMoyen: 0,
-    meilleurVendeur: "-",
-    meilleurEmploye: "-",
-    articleTop: "-",
-    articleTopQuantite: 0,
-    paiements: {},
-    ventes: [],
-    stockCritique: 0,
-  };
-  const vendeurs = {};
-  const articles = {};
-  if (period === "all") start = null;
-  if (sheet && sheet.getLastRow() > 1) {
-    const values = sheet.getDataRange().getValues();
-    const { rowIndex, headers } = trouverLigneEnTetes(values, [
-      "id",
-      "date",
-      "heure",
-      "articles",
-      "montant final",
-      "type paiement",
-      "statut",
-    ]);
-    const col = (names, fallback) =>
-      names
-        .map((name) => headers.indexOf(normaliserEntete(name)))
-        .find((index) => index >= 0) ?? fallback;
-    values.slice(rowIndex + 1).forEach((row) => {
-      if (
-        !Array.isArray(row) ||
-        row.every((cell) => String(cell || "").trim() === "")
-      )
-        return;
-      const date = parseDate(row[col(["date", "date vente"], 1)]);
-      if (start && (!date || date < start)) return;
-      const total =
-        Number(
-          String(
-            row[col(["montant final", "total", "total final"], 7)] || "",
-          ).replace(",", "."),
-        ) || 0;
-      const vendeur = String(
-        row[col(["vendeur id", "vendeur", "cashier", "caissier"], 3)] || "-",
-      );
-      const paiement = String(
-        row[col(["type paiement", "paiement", "payment"], 8)] || "-",
-      );
-      result.totalCA += total;
-      result.nbVentes++;
-      vendeurs[vendeur] = (vendeurs[vendeur] || 0) + total;
-      result.paiements[paiement] = (result.paiements[paiement] || 0) + 1;
-      result.ventes.push({
-        id: row[col(["id", "vente id"], 0)],
-        date: row[col(["date", "date vente"], 1)],
-        vendeur,
-        paiement,
-        montantFinal: total,
-        statut: row[col(["statut", "status"], 10)] || "Complétée",
-      });
-      try {
-        const rawArticles = row[col(["articles", "article"], 4)] || "[]";
-        const items =
-          typeof rawArticles === "string"
-            ? JSON.parse(rawArticles)
-            : rawArticles;
-        if (Array.isArray(items)) {
-          items.forEach((item) => {
-            const nom = item && item.nom ? item.nom : "Article";
-            articles[nom] = (articles[nom] || 0) + (Number(item.quantity) || 0);
-          });
-        }
-      } catch (error) {
-        Logger.log("Articles de vente illisibles: " + error);
-      }
-    });
+function initialiserStructureStatistiquesHebdomadaires() {
+  assurerFeuilleAvecEntetes("CHARGES_HEBDOMADAIRES", ["ID","Semaine début","Type","Libellé","Montant","Employé","Statut","Date création"]);
+}
+function debutSemaineStatistiques_(date) {
+  const d = new Date(date || new Date()); d.setHours(0,0,0,0);
+  const j = d.getDay(); d.setDate(d.getDate() + (j === 0 ? -6 : 1-j)); return d;
+}
+function finSemaineStatistiques_(date) {
+  const d = debutSemaineStatistiques_(date); d.setDate(d.getDate()+6); d.setHours(23,59,59,999); return d;
+}
+function parseDateStatistiques_(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return new Date(value);
+  const raw = String(value || "").trim(); if (!raw) return null;
+  let m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0));
+  m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) return new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0));
+  const d = new Date(raw); return Number.isNaN(d.getTime()) ? null : d;
+}
+function plageStatistiquesHebdomadaires_(period) {
+  const now = new Date(), current = debutSemaineStatistiques_(now), p = String(period||"week").toLowerCase();
+  let start = new Date(current), end = finSemaineStatistiques_(now);
+  if (p === "today") { start = new Date(now.getFullYear(),now.getMonth(),now.getDate()); end = new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999); }
+  else if (p === "previous-week") { start.setDate(start.getDate()-7); end = finSemaineStatistiques_(start); }
+  else if (p === "4-weeks") start.setDate(start.getDate()-21);
+  else if (p === "12-weeks") start.setDate(start.getDate()-77);
+  else if (p === "all") start = end = null;
+  return {start,end};
+}
+function lireChargesHebdomadaires_(start,end) {
+  initialiserStructureStatistiquesHebdomadaires(); const s=obtenirFeuille("CHARGES_HEBDOMADAIRES"); if(!s||s.getLastRow()<2)return[];
+  const v=s.getDataRange().getValues(), h=v[0].map(normaliserEntete), ci=(names,f)=>names.map(n=>h.indexOf(normaliserEntete(n))).find(i=>i>=0)??f;
+  return v.slice(1).filter(r=>r.some(c=>String(c||"").trim())).map(r=>({id:r[ci(["id"],0)],semaineDebut:parseDateStatistiques_(r[ci(["semaine début","week start"],1)]),type:String(r[ci(["type"],2)]||"AUTRE").toUpperCase(),libelle:String(r[ci(["libellé","label"],3)]||"").trim(),montant:Math.max(0,Number(String(r[ci(["montant","amount"],4)]||"").replace(",","."))||0),employe:String(r[ci(["employé","employee"],5)]||"").trim(),statut:String(r[ci(["statut","status"],6)]||"ACTIF").toUpperCase()})).filter(c=>c.statut!=="ANNULEE"&&c.statut!=="ANNULÉE"&&(!start||(c.semaineDebut&&c.semaineDebut>=start&&c.semaineDebut<=end)));
+}
+function obtenirChargesHebdomadaires(vendeurId,period){ if(vendeurId)verifierPermission(vendeurId,"dashboard"); const r=plageStatistiquesHebdomadaires_(period||"week"); return lireChargesHebdomadaires_(r.start,r.end).map(c=>({id:c.id,semaineDebut:c.semaineDebut?Utilities.formatDate(c.semaineDebut,"Europe/Paris","dd/MM/yyyy"):"",type:c.type,libelle:c.libelle,montant:c.montant,employe:c.employe,statut:c.statut})); }
+function sauvegarderChargeHebdomadaire(charge,vendeurId){
+  if(vendeurId)verifierPermission(vendeurId,"dashboard"); if(!charge)throw new Error("Charge invalide."); const montant=Number(charge.montant); if(!Number.isFinite(montant)||montant<=0)throw new Error("Le montant doit être supérieur à 0.");
+  const type=String(charge.type||"AUTRE").trim().toUpperCase(), libelle=String(charge.libelle||"").trim(); if(!libelle)throw new Error("Le libellé est obligatoire.");
+  const s=assurerFeuilleAvecEntetes("CHARGES_HEBDOMADAIRES",["ID","Semaine début","Type","Libellé","Montant","Employé","Statut","Date création"]), id=charge.id||prochainIdentifiant(s,"CHG",new Date().getFullYear());
+  const rows=s.getLastRow()<2?[]:s.getRange(2,1,s.getLastRow()-1,8).getValues(), i=rows.findIndex(r=>String(r[0])===String(id)), out=i>=0?[...rows[i]]:Array(8).fill("");
+  out[0]=id; out[1]=debutSemaineStatistiques_(parseDateStatistiques_(charge.semaineDebut)||new Date()); out[2]=type; out[3]=libelle; out[4]=Math.round(montant*100)/100; out[5]=String(charge.employe||"").trim(); out[6]="ACTIF"; out[7]=out[7]||new Date();
+  if(i>=0)s.getRange(i+2,1,1,8).setValues([out]);else s.getRange(s.getLastRow()+1,1,1,8).setValues([out]); return obtenirChargesHebdomadaires(vendeurId,"all");
+}
+function supprimerChargeHebdomadaire(id,vendeurId){
+  if(vendeurId)verifierPermission(vendeurId,"dashboard"); const s=assurerFeuilleAvecEntetes("CHARGES_HEBDOMADAIRES",["ID","Semaine début","Type","Libellé","Montant","Employé","Statut","Date création"]); if(!id||s.getLastRow()<2)throw new Error("Charge introuvable.");
+  const rows=s.getRange(2,1,s.getLastRow()-1,8).getValues(),i=rows.findIndex(r=>String(r[0])===String(id)); if(i<0)throw new Error("Charge introuvable."); s.getRange(i+2,7).setValue("ANNULEE"); return obtenirChargesHebdomadaires(vendeurId,"all");
+}
+function obtenirStatistiquesDashboard(period,vendeurId){
+  if(vendeurId)verifierPermission(vendeurId,"dashboard"); initialiserStructureStatistiquesHebdomadaires(); const range=plageStatistiquesHebdomadaires_(period||"week"), sheet=obtenirFeuille("Ventes");
+  const result={period:period||"week",periodStart:range.start?Utilities.formatDate(range.start,"Europe/Paris","dd/MM/yyyy"):"",periodEnd:range.end?Utilities.formatDate(range.end,"Europe/Paris","dd/MM/yyyy"):"",totalCA:0,nbVentes:0,panierMoyen:0,meilleurVendeur:"-",meilleurEmploye:"-",articleTop:"-",articleTopQuantite:0,paiements:{},ventes:[],stockCritique:0,salaires:0,factures:0,autresCharges:0,chargesTotal:0,resultatNet:0,margeNette:0,charges:[],weekly:[]}, vendeurs={},articles={};
+  if(sheet&&sheet.getLastRow()>1){ const v=sheet.getDataRange().getValues(),{rowIndex,headers}=trouverLigneEnTetes(v,["id","date","heure","articles","montant final","type paiement","statut"]),c=(n,f)=>n.map(x=>headers.indexOf(normaliserEntete(x))).find(i=>i>=0)??f;
+    v.slice(rowIndex+1).forEach(r=>{if(!r.some(x=>String(x||"").trim()))return;const d=parseDateStatistiques_(r[c(["date","date vente"],1)]);if(range.start&&(!d||d<range.start||d>range.end))return;const total=Number(String(r[c(["montant final","total","total final"],7)]||"").replace(",","."))||0, vendeur=String(r[c(["vendeur id","vendeur","cashier","caissier"],3)]||"-"),paiement=String(r[c(["type paiement","paiement","payment"],8)]||"-"),statut=String(r[c(["statut","status"],10)]||"Complétée");if(statut.toUpperCase().includes("ANNUL"))return;result.totalCA+=total;result.nbVentes++;vendeurs[vendeur]=(vendeurs[vendeur]||0)+total;result.paiements[paiement]=(result.paiements[paiement]||0)+1;result.ventes.push({id:r[c(["id","vente id"],0)],date:r[c(["date","date vente"],1)],vendeur,paiement,montantFinal:total,statut});try{const raw=r[c(["articles","article"],4)]||"[]",items=typeof raw==="string"?JSON.parse(raw):raw;if(Array.isArray(items))items.forEach(it=>{const n=it&&(it.nom||it.nomComplet)?(it.nom||it.nomComplet):"Article";articles[n]=(articles[n]||0)+(Number(it.quantity)||0);});}catch(e){Logger.log("Articles de vente illisibles: "+e);}});
   }
-  const best = (values) =>
-    Object.keys(values).sort((a, b) => values[b] - values[a])[0] || "-";
-  const meilleurVendeurId = best(vendeurs);
-  result.meilleurVendeur =
-    obtenirVendeurParId(meilleurVendeurId)?.nom || meilleurVendeurId;
-  result.articleTop = best(articles);
-  result.articleTopQuantite = articles[result.articleTop] || 0;
-  result.panierMoyen = result.nbVentes ? result.totalCA / result.nbVentes : 0;
-  const txSheet = obtenirFeuille("CONTRACT_TRANSACTIONS");
-  const employes = {};
-  if (txSheet && txSheet.getLastRow() > 1) {
-    txSheet
-      .getRange(2, 1, txSheet.getLastRow() - 1, 18)
-      .getValues()
-      .forEach((row) => {
-        const date = row[15] instanceof Date ? row[15] : null;
-        if (start && (!date || date < start)) return;
-        const employee = String(row[4] || "-");
-        employes[employee] = (employes[employee] || 0) + (Number(row[8]) || 0);
-      });
-  }
-  result.meilleurEmploye = best(employes);
-  const articleSheet = obtenirFeuille("Articles");
-  if (articleSheet && articleSheet.getLastRow() > 1) {
-    const articleValues = articleSheet.getDataRange().getValues();
-    const articleHeaders = articleValues[0].map(normaliserEntete);
-    const articleCol = (names, fallback) =>
-      names
-        .map((name) => articleHeaders.indexOf(normaliserEntete(name)))
-        .find((index) => index >= 0) ?? fallback;
-    const stockColumn = articleCol(["stock", "quantité", "quantity"], 4);
-    const thresholdColumn = articleCol(
-      ["seuil alerte", "seuil", "stock minimum"],
-      5,
-    );
-    result.stockCritique = articleValues
-      .slice(1)
-      .filter(
-        (row) =>
-          Number(row[stockColumn]) <= Number(row[thresholdColumn]) &&
-          Number(row[thresholdColumn]) > 0,
-      ).length;
-  }
+  const best=o=>Object.keys(o).sort((a,b)=>o[b]-o[a])[0]||"-",bestV=best(vendeurs); result.meilleurVendeur=obtenirVendeurParId(bestV)?.nom||bestV; result.articleTop=best(articles); result.articleTopQuantite=articles[result.articleTop]||0; result.panierMoyen=result.nbVentes?result.totalCA/result.nbVentes:0;
+  const tx=obtenirFeuille("CONTRACT_TRANSACTIONS"),employes={}; if(tx&&tx.getLastRow()>1)tx.getRange(2,1,tx.getLastRow()-1,18).getValues().forEach(r=>{const d=parseDateStatistiques_(r[15]);if(range.start&&(!d||d<range.start||d>range.end))return;const e=String(r[4]||"-");employes[e]=(employes[e]||0)+(Number(r[8])||0);}); result.meilleurEmploye=best(employes);
+  const charges=lireChargesHebdomadaires_(range.start,range.end); result.charges=charges.map(c=>({id:c.id,semaineDebut:c.semaineDebut?Utilities.formatDate(c.semaineDebut,"Europe/Paris","dd/MM/yyyy"):"",type:c.type,libelle:c.libelle,montant:c.montant,employe:c.employe})); charges.forEach(c=>{if(c.type==="SALAIRE"||c.type==="SALAIRES")result.salaires+=c.montant;else if(c.type==="FACTURE"||c.type==="FACTURES")result.factures+=c.montant;else result.autresCharges+=c.montant;}); result.chargesTotal=result.salaires+result.factures+result.autresCharges;result.resultatNet=result.totalCA-result.chargesTotal;result.margeNette=result.totalCA?(result.resultatNet/result.totalCA)*100:0;
+  const as=obtenirFeuille("Articles"); if(as&&as.getLastRow()>1){const v=as.getDataRange().getValues(),h=v[0].map(normaliserEntete),c=(n,f)=>n.map(x=>h.indexOf(normaliserEntete(x))).find(i=>i>=0)??f,stock=c(["stock","quantité","quantity"],4),seuil=c(["seuil alerte","seuil","stock minimum"],5);result.stockCritique=v.slice(1).filter(r=>Number(r[stock])<=Number(r[seuil])&&Number(r[seuil])>0).length;}
+  const ws=range.start?debutSemaineStatistiques_(range.start):debutSemaineStatistiques_(new Date(new Date().getFullYear(),0,1)),we=range.end||finSemaineStatistiques_(new Date()); for(let cur=new Date(ws);cur<=we;cur.setDate(cur.getDate()+7)){const end=finSemaineStatistiques_(cur),wc=lireChargesHebdomadaires_(cur,end);let ca=0,n=0;if(sheet&&sheet.getLastRow()>1){const v=sheet.getDataRange().getValues(),{rowIndex,headers}=trouverLigneEnTetes(v,["id","date","montant final","statut"]),c=(x,f)=>x.map(y=>headers.indexOf(normaliserEntete(y))).find(i=>i>=0)??f;v.slice(rowIndex+1).forEach(r=>{const d=parseDateStatistiques_(r[c(["date","date vente"],1)]);if(!d||d<cur||d>end)return;if(String(r[c(["statut","status"],10)]||"").toUpperCase().includes("ANNUL"))return;ca+=Number(String(r[c(["montant final","total","total final"],7)]||"").replace(",","."))||0;n++;});}const ch=wc.reduce((s,c)=>s+c.montant,0);result.weekly.push({semaineDebut:Utilities.formatDate(cur,"Europe/Paris","dd/MM/yyyy"),chiffreAffaires:ca,ventes:n,charges:ch,resultat:ca-ch});}
   return result;
 }
 
