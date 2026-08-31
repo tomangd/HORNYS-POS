@@ -1,4 +1,5 @@
 name: One-time weekly statistics patch
+# retry weekly statistics patch
 
 on:
   push:
