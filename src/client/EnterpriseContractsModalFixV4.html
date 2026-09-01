@@ -1,0 +1,22 @@
+<script>
+/** HORNYS-POS V4 — robust enterprise contract selector. */
+(function(){
+  'use strict';
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+  function active_(c){if(!c)return false;if(c.actif===true)return true;var s=String(c.status||c.statut||c.Status||'').trim().toUpperCase();return s==='ACTIF'||s==='ACTIVE'||s==='EN COURS'||s==='EN_COURS'||s==='1'||s==='TRUE';}
+  function render_(list){
+    var modal=document.getElementById('contratModal'),container=document.getElementById('contratSelectionList');if(!modal||!container)return;
+    var all=Array.isArray(list)?list.filter(Boolean):[];window.contratsData=all;
+    if(!all.length){container.innerHTML='<div style="padding:16px;color:#fca5a5"><strong>Aucun contrat entreprise trouvé.</strong><br><span style="color:#9ca3af">La fonction contratsEntreprises() ne renvoie aucun contrat.</span></div>';modal.classList.remove('hidden');return;}
+    container.innerHTML=all.map(function(c){var ok=active_(c),company=c.companyName||c.nomEntreprise||c.company_name||('Entreprise #'+(c.companyId||c.clientId||c.id)),type=String(c.type||c.Type||'CONTRAT').replace(/_/g,' '),status=String(c.status||c.statut||c.Status||(ok?'ACTIF':'INACTIF')).trim();return '<button type="button" class="btn-select contrat-option-v4" data-id="'+esc(c.id)+'" '+(ok?'':'disabled')+' style="width:100%;margin-bottom:8px;text-align:left;'+(ok?'':'opacity:.55;cursor:not-allowed;')+'"><strong>'+esc(company)+'</strong><br><span>'+esc(type)+' · '+esc(status.toUpperCase())+'</span></button>';}).join('');
+    container.querySelectorAll('.contrat-option-v4').forEach(function(b){b.addEventListener('click',function(){if(typeof window.selectionnerContrat==='function')window.selectionnerContrat(b.dataset.id);});});
+    modal.classList.remove('hidden');
+  }
+  window.ouvrirSelectionContrat=function(){
+    var modal=document.getElementById('contratModal'),container=document.getElementById('contratSelectionList');if(!modal||!container)return;
+    modal.classList.remove('hidden');container.innerHTML='<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
+    if(!window.google||!google.script||!google.script.run){render_(window.contratsData||[]);return;}
+    google.script.run.withSuccessHandler(render_).withFailureHandler(function(e){console.error('Contrats entreprise:',e);container.innerHTML='<div style="padding:16px;color:#fca5a5"><strong>Erreur de chargement des contrats.</strong><br><span style="color:#9ca3af">'+esc(e&&e.message||e)+'</span></div>';}).contratsEntreprises();
+  };
+})();
+</script>
