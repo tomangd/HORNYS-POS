@@ -1,43 +1,28 @@
 <script>
-/**
- * HORNYS-POS V3 — Enterprise contract selector hardening.
- *
- * Refresh the authoritative contract list whenever the selector is opened,
- * normalize active/status representations, and fall back to the frontend cache
- * if the server refresh fails.
- */
+/** HORNYS-POS V3 — robust enterprise contract selector. */
 (function () {
   'use strict';
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
   function isActiveContract(contract) {
     if (!contract) return false;
     if (contract.actif === true) return true;
-    var status = String(contract.status || contract.statut || '')
-      .trim()
-      .toUpperCase();
-    return status === 'ACTIF' || status === 'ACTIVE';
+    var status = String(contract.status || contract.statut || '').trim().toUpperCase();
+    return status === 'ACTIF' || status === 'ACTIVE' || status === 'EN COURS';
   }
 
   function normalizeContracts(list) {
-    return (Array.isArray(list) ? list : [])
-      .filter(Boolean)
-      .map(function (contract) {
-        var copy = Object.assign({}, contract);
-        copy.actif = isActiveContract(copy);
-        copy.status = String(copy.status || copy.statut || '')
-          .trim()
-          .toUpperCase() || (copy.actif ? 'ACTIF' : 'SUSPENDU');
-        return copy;
-      });
+    return (Array.isArray(list) ? list : []).filter(Boolean).map(function (contract) {
+      var copy = Object.assign({}, contract);
+      copy.actif = isActiveContract(copy);
+      copy.status = String(copy.status || copy.statut || '').trim().toUpperCase() || (copy.actif ? 'ACTIF' : 'SUSPENDU');
+      return copy;
+    });
   }
 
   function renderContracts(list) {
@@ -45,49 +30,37 @@
     var container = document.getElementById('contratSelectionList');
     if (!modal || !container) return;
 
-    var normalized = normalizeContracts(list);
-    var activeContracts = normalized.filter(isActiveContract);
-    window.contratsData = normalized;
+    var contracts = normalizeContracts(list);
+    window.contratsData = contracts;
 
-    if (!activeContracts.length) {
-      container.innerHTML =
-        '<div style="padding:14px;color:#9ca3af;line-height:1.5">' +
-        '<strong style="color:#fff">Aucun contrat entreprise actif.</strong><br>' +
-        '<span>Vérifiez le statut du contrat dans l’onglet CONTRATS.</span>' +
-        '</div>';
+    if (!contracts.length) {
+      container.innerHTML = '<div style="padding:14px;color:#9ca3af;line-height:1.5"><strong style="color:#fff">Aucun contrat entreprise trouvé.</strong><br>Vérifiez l’onglet CONTRATS et la connexion à Google Sheets.</div>';
       modal.classList.remove('hidden');
       return;
     }
 
-    container.innerHTML = activeContracts.map(function (contract) {
-      var company = contract.companyName || contract.nomEntreprise ||
-        ('Entreprise #' + (contract.companyId || contract.clientId || contract.id));
+    container.innerHTML = contracts.map(function (contract) {
+      var company = contract.companyName || contract.nomEntreprise || ('Entreprise #' + (contract.companyId || contract.clientId || contract.id));
       var type = String(contract.type || 'CONTRAT').replace(/_/g, ' ');
+      var active = isActiveContract(contract);
+      var repartition = '';
       var companyPercent = Number(contract.companyPercent);
       var employeePercent = Number(contract.employeePercent);
-      var repartition = '';
       if (!isNaN(companyPercent) || !isNaN(employeePercent)) {
-        repartition =
-          ' · Entreprise ' + (isNaN(companyPercent) ? 0 : companyPercent) +
-          '% · Employé ' + (isNaN(employeePercent) ? 0 : employeePercent) + '%';
+        repartition = ' · Entreprise ' + (isNaN(companyPercent) ? 0 : companyPercent) + '% · Employé ' + (isNaN(employeePercent) ? 0 : employeePercent) + '%';
       }
-
-      return '<button type="button" class="btn-select contrat-option" ' +
-        'data-id="' + escapeHtml(contract.id) + '" ' +
-        'style="width:100%;margin-bottom:8px;text-align:left;">' +
+      return '<button type="button" class="btn-select contrat-option" data-id="' + escapeHtml(contract.id) + '" ' +
+        (active ? '' : 'disabled') + ' style="width:100%;margin-bottom:8px;text-align:left;' + (active ? '' : 'opacity:.55;cursor:not-allowed;') + '">' +
         '<strong>' + escapeHtml(company) + '</strong><br>' +
-        '<span>' + escapeHtml(type) + escapeHtml(repartition) + '</span>' +
+        '<span>' + escapeHtml(type) + escapeHtml(repartition) + ' · ' + escapeHtml(contract.status) + '</span>' +
         '</button>';
     }).join('');
 
-    container.querySelectorAll('.contrat-option').forEach(function (button) {
+    container.querySelectorAll('.contrat-option:not([disabled])').forEach(function (button) {
       button.addEventListener('click', function () {
-        if (typeof window.selectionnerContrat === 'function') {
-          window.selectionnerContrat(button.dataset.id);
-        }
+        if (typeof window.selectionnerContrat === 'function') window.selectionnerContrat(button.dataset.id);
       });
     });
-
     modal.classList.remove('hidden');
   }
 
@@ -95,9 +68,7 @@
     var modal = document.getElementById('contratModal');
     var container = document.getElementById('contratSelectionList');
     if (!modal || !container) return;
-
-    container.innerHTML =
-      '<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
+    container.innerHTML = '<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
     modal.classList.remove('hidden');
 
     if (!window.google || !google.script || !google.script.run) {
@@ -113,11 +84,8 @@
         console.error('Erreur chargement contrats entreprise', error);
         var fallback = normalizeContracts(window.contratsData || []);
         renderContracts(fallback);
-        if (!fallback.some(isActiveContract) && typeof afficherStatus === 'function') {
-          afficherStatus(
-            (error && error.message) || 'Impossible de charger les contrats entreprise.',
-            'error'
-          );
+        if (!fallback.length && typeof afficherStatus === 'function') {
+          afficherStatus((error && error.message) || 'Impossible de charger les contrats entreprise.', 'error');
         }
       })
       .contratsEntreprises();
