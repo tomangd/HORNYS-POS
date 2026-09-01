@@ -1,0 +1,27 @@
+<script>
+/** HORNYS-POS V5 — robust enterprise contract selector. */
+(function(){'use strict';
+  window.ouvrirSelectionContrat=function(){
+    var modal=document.getElementById('contratModal'), list=document.getElementById('contratSelectionList');
+    if(!modal||!list)return;
+    modal.classList.remove('hidden');
+    list.innerHTML='<div style="padding:14px;color:#9ca3af">Chargement des contrats entreprise…</div>';
+    google.script.run.withSuccessHandler(function(data){
+      var contracts=Array.isArray(data)?data.filter(Boolean):[];
+      if(typeof contratsData!=='undefined')contratsData=contracts;
+      if(!contracts.length){list.innerHTML='<div style="padding:14px;color:#fbbf24">Aucun contrat entreprise trouvé.</div>';return;}
+      list.innerHTML=contracts.map(function(c){
+        var id=c.id||c.contractId||c.ID;
+        var name=c.companyName||c.nomEntreprise||c.company||c.clientName||('Entreprise #'+(c.companyId||c.clientId||id));
+        var type=String(c.type||c.contractType||c.typeContrat||'Contrat').replace(/_/g,' ');
+        var status=c.status||c.statut||c.actif;
+        var active=status===true||String(status||'').trim().toUpperCase()==='ACTIF'||String(status||'').trim().toUpperCase()==='ACTIVE'||String(status||'').trim().toUpperCase()==='EN COURS';
+        return '<button type="button" class="btn-select contrat-option-v5" data-id="'+esc_(id)+'" style="width:100%;margin-bottom:8px;text-align:left;display:block;opacity:'+(active?'1':'.72')+'">'+
+          '<strong>'+esc_(name)+'</strong><br><span>'+esc_(type)+'</span>'+(!active?' <small style="color:#fbbf24">· '+esc_(status||'Inactif')+'</small>':'')+'</button>';
+      }).join('');
+      list.querySelectorAll('.contrat-option-v5').forEach(function(btn){btn.onclick=function(){if(typeof window.selectionnerContrat==='function')window.selectionnerContrat(btn.dataset.id);};});
+    }).withFailureHandler(function(e){list.innerHTML='<div style="padding:14px;color:#fca5a5">Impossible de charger les contrats : '+esc_(e&&e.message||e)+'</div>';}).contratsEntreprises();
+  };
+  function esc_(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
+})();
+</script>
