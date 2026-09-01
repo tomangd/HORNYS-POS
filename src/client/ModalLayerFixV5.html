@@ -1,6 +1,13 @@
 <style>
-/* HORNYS-POS — all application modals above the fixed navigation. */
-.modal-overlay,#contratModal,#contractQuotaModalV5,#contractQuotaModalV4,#contractQuotaModalV3{position:fixed!important;z-index:10000!important;}
-body>.modal-overlay,body>[role="dialog"]{z-index:10000!important;}
-.sidebar,.app-navbar{z-index:5000!important;}
+/* HORNYS-POS — GLOBAL STACKING CONTRACT. Navigation is always behind blocking UI. */
+:root{--pos-nav-z:100;--pos-overlay-z:10000;--pos-loading-z:11000;--pos-blocking-z:12000;}
+/* Navigation must never create a higher layer than an overlay. */
+.sidebar,.app-navbar,.top-header{z-index:var(--pos-nav-z)!important;}
+/* Generic modal/backdrop layers. */
+.modal-overlay,.modal-backdrop,[class*="modal-overlay"],[class*="modal-backdrop"],[role="dialog"]{z-index:var(--pos-overlay-z)!important;}
+/* Loading and blocking screens sit above modals. */
+#loadingScreen,.loading-screen,[id*="loading" i],[class*="loading" i]{z-index:var(--pos-loading-z)!important;}
+#pinScreen,.pin-screen{z-index:var(--pos-blocking-z)!important;}
+/* Full-screen backdrops must cover the entire viewport, including the navbar. */
+.modal-overlay,.modal-backdrop{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;}
 </style>
