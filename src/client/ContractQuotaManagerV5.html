@@ -1,35 +1,31 @@
 <script>
-/** HORNYS-POS V5 — contract-level quota editor. Same quota rule for every employee. */
+/** HORNYS-POS — contract-level quotas. One rule per contract/article, shared by every employee. */
 (function(){'use strict';
-  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
+  var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[c];});};
   function ensureButton(){
-    var form=document.getElementById('contratFormModal');
-    if(!form||document.getElementById('contractQuotaButtonV5'))return;
-    var actions=form.querySelector('.modal-choice-actions');
-    if(!actions)return;
-    var b=document.createElement('button');b.id='contractQuotaButtonV5';b.type='button';b.className='btn-action';b.textContent='Gestion des quotas';
-    b.style.cssText='margin-right:auto;background:#374151;color:#fff;';
-    b.onclick=function(){
-      var id=null;try{id=typeof contratEnEditionId!=='undefined'?contratEnEditionId:null;}catch(e){}
-      var input=document.getElementById('contratIdInput');if(!id&&input)id=input.value||null;
-      if(!id){if(typeof afficherStatus==='function')afficherStatus('Enregistrez d’abord le contrat avant de définir ses quotas.','error');return;}
-      open_(id);
-    };actions.insertBefore(b,actions.firstChild);
+    var form=document.getElementById('contratFormModal'); if(!form||document.getElementById('contractQuotaButtonV5'))return;
+    var actions=form.querySelector('.modal-choice-actions'); if(!actions)return;
+    var b=document.createElement('button'); b.id='contractQuotaButtonV5'; b.type='button'; b.className='btn-action'; b.textContent='Gestion des quotas'; b.style.marginRight='auto';
+    b.onclick=function(){var id=null;try{id=typeof contratEnEditionId!=='undefined'?contratEnEditionId:null;}catch(e){} var input=document.getElementById('contratIdInput');if(!id&&input)id=input.value||null;if(!id){if(typeof afficherStatus==='function')afficherStatus('Enregistrez d’abord le contrat avant de définir ses quotas.','error');return;}open_(id);};
+    actions.insertBefore(b,actions.firstChild);
   }
   function open_(contractId){
     var old=document.getElementById('contractQuotaModalV5');if(old)old.remove();
-    var m=document.createElement('div');m.id='contractQuotaModalV5';m.className='modal-overlay';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:2600;';
-    m.innerHTML='<div class="modal-panel" style="width:min(900px,94vw);max-height:90vh;overflow:auto;padding:22px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div><h2 style="margin:0;color:#fff">Gestion des quotas</h2><div style="font-size:12px;color:#9ca3af;margin-top:5px">Ces règles sont définies une seule fois pour le contrat et s’appliquent à chaque employé.</div></div><button type="button" class="btn-action btn-cancel" id="cqa5Close">Fermer</button></div><div style="display:grid;grid-template-columns:minmax(0,1fr) 120px 150px;gap:10px;padding:0 10px 8px;color:#9ca3af;font-size:11px"><span>Article pris en charge</span><span>Nombre</span><span>Fréquence</span></div><div id="cqa5Rules">Chargement…</div><div class="modal-choice-actions" style="margin-top:16px"><button type="button" class="btn-action btn-confirm" id="cqa5Save">Enregistrer les quotas</button></div></div>';
+    var m=document.createElement('div');m.id='contractQuotaModalV5';m.className='modal-overlay';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:10000!important;';
+    m.innerHTML='<div class="modal-panel" style="width:min(900px,94vw);max-height:90vh;overflow:auto;padding:22px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div><h2 style="margin:0;color:#fff">Gestion des quotas</h2><div style="font-size:12px;color:#9ca3af;margin-top:5px">Les règles sont définies une seule fois pour le contrat et s’appliquent à tous ses employés.</div></div><button type="button" class="btn-action btn-cancel" id="cqa5Close">Fermer</button></div><div style="display:grid;grid-template-columns:minmax(0,1fr) 120px 150px;gap:10px;padding:0 10px 8px;color:#9ca3af;font-size:11px"><span>Article</span><span>Nombre</span><span>Fréquence</span></div><div id="cqa5Rules">Chargement…</div><div class="modal-choice-actions" style="margin-top:16px"><button type="button" class="btn-action btn-confirm" id="cqa5Save">Enregistrer les quotas</button></div></div>';
     document.body.appendChild(m);document.getElementById('cqa5Close').onclick=function(){m.remove();};document.getElementById('cqa5Save').onclick=function(){save_(contractId);};
-    google.script.run.withSuccessHandler(function(r){render_(contractId,Array.isArray(r)?r:[]);}).withFailureHandler(function(e){document.getElementById('cqa5Rules').innerHTML='<div style="color:#fca5a5;padding:14px">'+esc(e&&e.message||e)+'</div>';}).lireReglesQuotaContrat(contractId);
+    google.script.run.withSuccessHandler(function(r){render_(Array.isArray(r)?r:[]);}).withFailureHandler(function(e){document.getElementById('cqa5Rules').innerHTML='<div style="color:#fca5a5;padding:14px">'+esc(e&&e.message||e)+'</div>';}).lireReglesQuotaContrat(contractId);
   }
-  function render_(contractId,rules){
-    var box=document.getElementById('cqa5Rules');var articles=typeof articlesData!=='undefined'&&Array.isArray(articlesData)?articlesData:[];
+  function render_(rules){
+    var box=document.getElementById('cqa5Rules'),articles=typeof articlesData!=='undefined'&&Array.isArray(articlesData)?articlesData:[];
     if(!articles.length){box.innerHTML='<div style="padding:14px;color:#fbbf24">Aucun article disponible.</div>';return;}
-    box.innerHTML=articles.filter(function(a){return a&&a.id!=null;}).map(function(a){var r=rules.find(function(x){return String(x.articleId)===String(a.id)&&x.active!==false;}),on=!!r;return '<div class="cqa5-row" data-article="'+esc(a.id)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 120px 150px;gap:10px;align-items:center;padding:10px;border:1px solid #2d313f;border-radius:8px;margin-bottom:7px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="cqa5-enabled" '+(on?'checked':'')+'> <span>'+esc(a.nom||a.name||a.id)+'</span></label><input class="form-control cqa5-quota" type="number" min="1" step="1" value="'+(on?esc(r.quota):'1')+'" '+(on?'':'disabled')+'><select class="form-control cqa5-period" '+(on?'':'disabled')+'><option value="DAY" '+(on&&r.period==='DAY'?'selected':'')+'>Par jour</option><option value="WEEK" '+(on&&r.period==='WEEK'?'selected':'')+'>Par semaine</option></select></div>';}).join('');
+    box.innerHTML=articles.filter(function(a){return a&&a.id!=null;}).map(function(a){var r=rules.find(function(x){return String(x.articleId)===String(a.id)&&x.active!==false;}),on=!!r;return '<div class="cqa5-row" data-article="'+esc(a.id)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 120px 150px;gap:10px;align-items:center;padding:10px;border:1px solid #2d313f;border-radius:8px;margin-bottom:7px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="cqa5-enabled" '+(on?'checked':'')+'> <span>'+esc(a.nom||a.name||a.id)+'</span></label><input class="form-control cqa5-quota" type="number" min="1" step="1" value="'+(on?esc(r.quota):'1')+'" '+(on?'':'disabled')+'><select class="form-control cqa5-period" '+(on?'':'disabled')+'><option value="DAY" '+(on&&String(r.period).toUpperCase()==='DAY'?'selected':'')+'>Par jour</option><option value="WEEK" '+(on&&String(r.period).toUpperCase()==='WEEK'?'selected':'')+'>Par semaine</option></select></div>';}).join('');
     box.querySelectorAll('.cqa5-enabled').forEach(function(cb){cb.onchange=function(){var row=cb.closest('.cqa5-row');row.querySelector('.cqa5-quota').disabled=!cb.checked;row.querySelector('.cqa5-period').disabled=!cb.checked;};});
   }
-  function save_(contractId){var rules=[];document.querySelectorAll('#cqa5Rules .cqa5-row').forEach(function(row){if(row.querySelector('.cqa5-enabled').checked){rules.push({articleId:row.dataset.article,active:true,quota:Math.floor(Number(row.querySelector('.cqa5-quota').value)),period:row.querySelector('.cqa5-period').value});}});var b=document.getElementById('cqa5Save');b.disabled=true;b.textContent='Enregistrement…';google.script.run.withSuccessHandler(function(){b.disabled=false;b.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus('Quotas enregistrés pour le contrat. La même règle s’applique à tous ses employés.','success');}).withFailureHandler(function(e){b.disabled=false;b.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus(e&&e.message||e,'error');}).sauvegarderReglesQuotaContrat(contractId,rules,typeof vendeurActif!=='undefined'?vendeurActif:null);}
+  function save_(contractId){
+    var rules=[];document.querySelectorAll('#cqa5Rules .cqa5-row').forEach(function(row){if(row.querySelector('.cqa5-enabled').checked){var q=Number(row.querySelector('.cqa5-quota').value);if(!Number.isFinite(q)||q<1)throw new Error('Le quota doit être supérieur à 0.');rules.push({articleId:row.dataset.article,active:true,quota:Math.floor(q),period:row.querySelector('.cqa5-period').value});}});
+    var b=document.getElementById('cqa5Save');b.disabled=true;b.textContent='Enregistrement…';google.script.run.withSuccessHandler(function(){b.disabled=false;b.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus('Quotas enregistrés. La même règle s’applique à tous les employés.','success');}).withFailureHandler(function(e){b.disabled=false;b.textContent='Enregistrer les quotas';if(typeof afficherStatus==='function')afficherStatus(e&&e.message||e,'error');}).sauvegarderReglesQuotaContrat(contractId,rules,typeof vendeurActif!=='undefined'?vendeurActif:null);
+  }
   function bind(){ensureButton();}
   document.addEventListener('DOMContentLoaded',bind);new MutationObserver(bind).observe(document.documentElement,{childList:true,subtree:true});setInterval(bind,1000);
 })();
