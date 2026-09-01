@@ -1,20 +1,6 @@
 <style>
-/* HORNYS-POS V5 — modal layer must always sit above primary navigation. */
-.modal-overlay,
-#contratModal,
-#contractQuotaModalV5,
-#contractQuotaModalV4,
-#contractQuotaModalV3 {
-  position: fixed !important;
-  z-index: 10000 !important;
-}
-.sidebar,
-.app-navbar {
-  z-index: 5000 !important;
-}
-/* Any modal opened inside the document must establish its own top layer. */
-body > .modal-overlay,
-body > [role="dialog"] {
-  z-index: 10000 !important;
-}
+/* HORNYS-POS — all application modals above the fixed navigation. */
+.modal-overlay,#contratModal,#contractQuotaModalV5,#contractQuotaModalV4,#contractQuotaModalV3{position:fixed!important;z-index:10000!important;}
+body>.modal-overlay,body>[role="dialog"]{z-index:10000!important;}
+.sidebar,.app-navbar{z-index:5000!important;}
 </style>
